@@ -15,6 +15,7 @@ import analyzer
 import pv_generator
 import word_generator
 import historique_manager
+import historique_demo
 import convocation_generator
 import presence_generator
 
@@ -688,6 +689,13 @@ with tab5:
 
     if nb_total == 0:
         st.info("Aucune AG sauvegardee pour l instant. Analysez une AG avec votre cle API pour la voir apparaitre ici.")
+        st.divider()
+        st.caption("🎭 Mode demo — charger des donnees d exemple pour explorer les fonctionnalites")
+        if st.button("📥 Charger les donnees demo (4 AG — 2 dossiers Acacias)", type="secondary"):
+            for entree in historique_demo.DEMO_HISTORIQUE:
+                historique_manager.sauvegarder_ag(entree["analyse"], entree.get("pv_texte"))
+            st.success(f"{len(historique_demo.DEMO_HISTORIQUE)} AG demo chargees ✅ — rechargement...")
+            st.rerun()
     else:
         # ── Selecteur de dossier ──────────────────────────────────────────────
         options_dossiers = ["📁 Tous les dossiers"] + [f"🏢 {d['entite']} ({d['nb_ag']} AG)" for d in dossiers]
