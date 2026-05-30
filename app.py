@@ -11,10 +11,16 @@ from dotenv import load_dotenv
 
 import demo_data
 import analyzer
-import transcriber
 import pv_generator
 import word_generator
 import historique_manager
+
+# Imports optionnels — disponibles en local uniquement
+try:
+    import transcriber
+    TRANSCRIPTION_DISPONIBLE = True
+except ImportError:
+    TRANSCRIPTION_DISPONIBLE = False
 
 load_dotenv()
 
@@ -133,10 +139,21 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["🎙️ Transcription", "📋 Analyse A
 with tab1:
     st.header("🎙️ Transcription audio")
 
+    if not TRANSCRIPTION_DISPONIBLE:
+        st.warning(
+            "⚠️ **Transcription audio non disponible sur cette instance.**\n\n"
+            "La transcription locale (faster-whisper) et la diarization (pyannote) "
+            "necessitent une installation locale avec GPU/CPU dedie.\n\n"
+            "👉 Utilisez le **mode demo** ci-dessous pour tester toutes les fonctionnalites, "
+            "ou [installez l app en local](https://github.com/PSMAS30/ag-assistant) "
+            "pour traiter vos propres enregistrements."
+        )
+
     source = st.radio(
         "Source",
         ["📁 Charger un fichier audio", "🎭 Utiliser une AG de demo"],
         horizontal=True,
+        index=1 if not TRANSCRIPTION_DISPONIBLE else 0,
     )
 
     if source == "🎭 Utiliser une AG de demo":
@@ -156,6 +173,10 @@ with tab1:
             st.success("AG de demo chargee ✅")
 
     else:
+        if not TRANSCRIPTION_DISPONIBLE:
+            st.info("💡 Transcription audio disponible uniquement en installation locale. Utilisez le mode demo a gauche.")
+            st.stop()
+
         fichier = st.file_uploader(
             "Fichier audio",
             type=["mp3", "wav", "m4a", "ogg", "flac"],

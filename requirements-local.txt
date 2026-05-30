@@ -1,0 +1,15 @@
+# Requirements installation locale complete (transcription audio + diarization)
+# Installation : pip install -r requirements-local.txt
+# Index PyTorch CPU : pip install -r requirements-local.txt --extra-index-url https://download.pytorch.org/whl/cpu
+
+anthropic>=0.25.0
+faster-whisper>=1.0.0
+pyannote.audio>=3.3.0
+python-docx>=1.1.0
+streamlit>=1.35.0
+fpdf2>=2.7.0
+python-dotenv>=1.0.0
+pytest>=8.0.0
+
+# Installer torch/torchaudio separement depuis le registry PyTorch CPU :
+# pip install torch==2.6.0+cpu torchaudio==2.6.0+cpu --index-url https://download.pytorch.org/whl/cpu
