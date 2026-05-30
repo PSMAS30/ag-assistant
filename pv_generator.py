@@ -175,12 +175,21 @@ def pv_demo(analyse: dict) -> str:
                 label = statut.upper() if statut else "?"
             titre_r = r.get("titre", r.get("intitule", ""))
             abstentions = votes.get("abstentions", votes.get("abstention", "?"))
+            # Source horodatee
+            ts = r.get("timestamps", {})
+            ts_debut = ts.get("debut")
+            ts_fin = ts.get("fin")
+            source_ligne = f"Source audio : {ts_debut} -> {ts_fin}" if ts_debut and ts_fin else ""
             lignes += [
                 "",
                 f"RESOLUTION N{r.get('numero', '?')} : {titre_r}",
                 f"{r.get('description', '')}",
+            ]
+            if source_ligne:
+                lignes.append(source_ligne)
+            lignes += [
                 f"Vote — Pour : {votes.get('pour', '?')} | Contre : {votes.get('contre', '?')} | Abstentions : {abstentions} {votes.get('unite', '')}",
-                f"→ {label}",
+                f"-> {label}",
             ]
             if r.get("base_legale") and r["base_legale"] != "non mentionne dans la transcription":
                 lignes.append(f"   Base legale : {r['base_legale']}")

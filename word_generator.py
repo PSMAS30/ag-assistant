@@ -171,6 +171,17 @@ def generer_pv_word(analyse: dict, chemin_sortie: str) -> str:
             # Titre resolution
             h = doc.add_heading(f"Resolution n°{r.get('numero', '?')} - {titre_res}", level=2)
 
+            # Source horodatee
+            ts = r.get("timestamps", {})
+            ts_debut = ts.get("debut")
+            ts_fin = ts.get("fin")
+            if ts_debut and ts_fin:
+                p_src = doc.add_paragraph()
+                p_src.add_run("Source audio : ").bold = True
+                run_src = p_src.add_run(f"{ts_debut} → {ts_fin}")
+                run_src.italic = True
+                run_src.font.color.rgb = RGBColor(0x44, 0x72, 0xC4)
+
             # Description
             if r.get("description"):
                 doc.add_paragraph(r["description"])
@@ -265,6 +276,36 @@ def generer_pv_word(analyse: dict, chemin_sortie: str) -> str:
             p.add_run("Recommandations :").bold = True
             for rec in recommandations:
                 doc.add_paragraph(rec, style="List Bullet")
+        doc.add_paragraph()
+
+    # ── NIVEAUX DE CONFIANCE IA ───────────────────────────────────────────────
+    conf_sections = analyse.get("niveaux_confiance_sections", {})
+    sections_conf = {k: v for k, v in conf_sections.items() if isinstance(v, (int, float))}
+    if sections_conf:
+        doc.add_heading("Niveaux de confiance IA par section", level=1)
+        table_conf = doc.add_table(rows=0, cols=2)
+        table_conf.style = "Table Grid"
+        labels_fr = {
+            "participants": "Participants",
+            "votes": "Votes",
+            "quorum": "Quorum",
+            "convocation": "Convocation",
+            "ordre_du_jour": "Ordre du jour",
+        }
+        for key, score in sections_conf.items():
+            label = labels_fr.get(key, key.replace("_", " ").capitalize())
+            ligne = table_conf.add_row()
+            ligne.cells[0].text = label
+            ligne.cells[0].paragraphs[0].runs[0].bold = True
+            cell_score = ligne.cells[1]
+            cell_score.text = f"{score}%"
+            run_s = cell_score.paragraphs[0].runs[0]
+            if score >= 90:
+                run_s.font.color.rgb = RGBColor(0x00, 0x80, 0x00)
+            elif score >= 70:
+                run_s.font.color.rgb = RGBColor(0xFF, 0x80, 0x00)
+            else:
+                run_s.font.color.rgb = RGBColor(0xFF, 0x00, 0x00)
         doc.add_paragraph()
 
     # ── SIGNATURES ────────────────────────────────────────────────────────────

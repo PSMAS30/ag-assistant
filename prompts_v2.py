@@ -149,6 +149,14 @@ Tu dois retourner UNIQUEMENT un JSON valide, sans texte avant ou après, avec ce
     "recommandations": ["Actions correctives suggérées avant signature du PV"]
   },
   "observations_juridiques": "Points d'attention légaux globaux sur cette AG",
+  "niveaux_confiance_sections": {
+    "participants": 95,
+    "votes": 88,
+    "quorum": 72,
+    "convocation": 60,
+    "ordre_du_jour": 95,
+    "methode": "Score 0-100 : 95-100=information explicite et complete, 75-94=information presente mais partielle, 50-74=information implicite ou incertaine, 0-49=information absente ou contradictoire"
+  },
   "diarization": [
     {
       "timestamp": "HH:MM ou null",
@@ -162,6 +170,8 @@ INSTRUCTIONS SUPPLÉMENTAIRES :
 - niveau_confiance "faible" si le passage audio semble incomplet, tronqué ou si plusieurs interprétations sont possibles
 - alertes : signaler tout vote sans décompte précis, quorum non vérifié, résolution sans résultat clair
 - diarization : extraire les interventions nommées uniquement (ne pas inventer des locuteurs)
+- niveaux_confiance_sections : evaluer independamment chaque section selon la clarte de la transcription
+- Pour les timestamps des resolutions : utiliser le format secondes (float) si disponible depuis la diarization, sinon HH:MM
 - Pour les copropriétés : toujours calculer si les majorités art.24/25/26 sont atteintes quand les tantièmes sont disponibles
 """
 

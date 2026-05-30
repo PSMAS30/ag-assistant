@@ -396,6 +396,38 @@ with tab2:
             if infos.get("lieu"):
                 st.caption(f"📍 {infos['lieu']}  |  👤 President : {infos.get('president_seance', '—')}  |  ✍️ Secretaire : {infos.get('secretaire', '—')}")
 
+            # ── Niveaux de confiance par section ────────────────────────────
+            conf_sections = a.get("niveaux_confiance_sections", {})
+            if conf_sections and any(isinstance(conf_sections.get(k), (int, float)) for k in ["participants", "votes", "quorum"]):
+                with st.expander("📊 Niveau de confiance par section", expanded=True):
+                    st.caption("Score 0-100 : clarte des informations extraites de la transcription.")
+
+                    def _couleur_score(score):
+                        if score is None: return "gray"
+                        if score >= 90: return "green"
+                        if score >= 70: return "orange"
+                        return "red"
+
+                    def _icone_score(score):
+                        if score is None: return "—"
+                        if score >= 90: return "✅"
+                        if score >= 70: return "⚠️"
+                        return "❌"
+
+                    sections = [
+                        ("Participants", conf_sections.get("participants")),
+                        ("Votes", conf_sections.get("votes")),
+                        ("Quorum", conf_sections.get("quorum")),
+                        ("Convocation", conf_sections.get("convocation")),
+                        ("Ordre du jour", conf_sections.get("ordre_du_jour")),
+                    ]
+                    cols = st.columns(len(sections))
+                    for i, (label, score) in enumerate(sections):
+                        if score is not None:
+                            icone = _icone_score(score)
+                            cols[i].metric(label, f"{icone} {score}%")
+                            cols[i].progress(int(score) / 100)
+
             # ── Ordre du jour ────────────────────────────────────────────────
             odj = a.get("ordre_du_jour", [])
             if odj:
@@ -405,16 +437,37 @@ with tab2:
                         st.write(f"{icone} {pt.get('numero', '')}. {pt.get('intitule', '')}")
 
             # ── Resolutions ──────────────────────────────────────────────────
+            def _fmt_ts(val):
+                """Formate un timestamp (secondes float ou string HH:MM) en HH:MM:SS."""
+                if val is None:
+                    return None
+                if isinstance(val, (int, float)):
+                    h = int(val // 3600)
+                    m = int((val % 3600) // 60)
+                    s = int(val % 60)
+                    return f"{h:02d}:{m:02d}:{s:02d}"
+                return str(val)  # deja formate
+
             resolutions = a.get("resolutions", [])
             if resolutions:
                 st.subheader(f"Resolutions ({len(resolutions)})")
                 for r in resolutions:
                     statut = r.get("statut", "")
                     icone = "✅" if statut == "adoptée" else "❌" if statut == "rejetée" else "⚠️"
-                    confiance = r.get("niveau_confiance", "")
-                    badge = f" — confiance {confiance}" if confiance else ""
-                    with st.expander(f"{icone} Resolution {r.get('numero')} — {r.get('titre', r.get('intitule', ''))}"):
+                    # Source horodatee
+                    ts = r.get("timestamps", {})
+                    ts_debut = _fmt_ts(ts.get("debut"))
+                    ts_fin = _fmt_ts(ts.get("fin"))
+                    source_label = f"  ·  ⏱ {ts_debut} → {ts_fin}" if ts_debut and ts_fin else ""
+                    with st.expander(f"{icone} Resolution {r.get('numero')} — {r.get('titre', r.get('intitule', ''))}{source_label}"):
                         st.write(r.get("description", ""))
+
+                        # Source audio
+                        if ts_debut or ts_fin:
+                            st.markdown(
+                                f"**Source audio :** `{ts_debut or '?'}` → `{ts_fin or '?'}`",
+                            )
+
                         votes = r.get("votes", {})
                         unite = votes.get("unite", "voix")
                         c1, c2, c3 = st.columns(3)
@@ -425,6 +478,10 @@ with tab2:
                             st.caption(f"Base legale : {r['base_legale']}")
                         if r.get("majorite_requise"):
                             st.caption(f"Majorite requise : {r['majorite_requise']}")
+                        # Niveau de confiance resolution
+                        conf_r = r.get("niveau_confiance", "")
+                        if conf_r:
+                            st.caption(f"Confiance IA : {conf_r}")
                         incertitudes = r.get("sections_incertaines", [])
                         if incertitudes:
                             st.warning("Sections incertaines : " + " | ".join(incertitudes))
