@@ -92,10 +92,28 @@ with st.sidebar:
     )
 
     api_key = None
+    hf_token_ui = None
+
     if mode == "🔑 Avec ma cle API":
-        api_key = st.text_input("Cle API Anthropic", type="password", value=os.getenv("ANTHROPIC_API_KEY", ""))
+        st.caption("🔐 Vos cles ne sont jamais stockees — utilisees uniquement le temps de votre session.")
+        api_key = st.text_input(
+            "Cle API Anthropic",
+            type="password",
+            placeholder="sk-ant-...",
+            help="Obtenez votre cle sur console.anthropic.com",
+        )
         if not api_key:
-            st.warning("Entrez votre cle API pour utiliser l analyse Claude.")
+            st.warning("Cle API requise pour l analyse et la generation de PV.")
+        hf_token_ui = st.text_input(
+            "Token HuggingFace (optionnel)",
+            type="password",
+            placeholder="hf_...",
+            help="Requis uniquement pour la diarization (identification des locuteurs). Obtenez-le sur huggingface.co/settings/tokens",
+        )
+        if hf_token_ui:
+            st.success("Token HF present — diarization disponible ✅")
+        else:
+            st.caption("Sans token HF : transcription sans identification des locuteurs.")
 
     st.divider()
     st.caption("📂 [Code source](https://github.com/PSMAS30/ag-assistant)")
@@ -172,9 +190,9 @@ with tab1:
 
             try:
                 if activer_diarization:
-                    hf_token = os.getenv("HF_TOKEN", "")
+                    hf_token = hf_token_ui or os.getenv("HF_TOKEN", "")
                     if not hf_token:
-                        st.error("HF_TOKEN manquant dans le fichier .env — diarization impossible.")
+                        st.error("Token HuggingFace requis pour la diarization — entrez-le dans la barre laterale.")
                         st.stop()
                     with st.spinner("Transcription + diarization en cours (peut prendre quelques minutes)…"):
                         nb_loc = int(nb_locuteurs_input) if nb_locuteurs_input > 0 else None
@@ -311,7 +329,7 @@ with tab2:
                     try:
                         st.session_state.analyse = analyzer.analyser_transcription(
                             st.session_state.transcription,
-                            api_key=os.getenv("ANTHROPIC_API_KEY", "demo"),
+                            api_key=api_key or "demo",
                         )
                     except Exception:
                         st.warning("Mode demo sans cle API — affichage d une analyse simulee.")
