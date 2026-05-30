@@ -135,6 +135,10 @@ for key in ["transcription", "segments", "segments_diarises", "locuteurs", "mapp
     if key not in st.session_state:
         st.session_state[key] = None
 
+# demo_historique_session : liste d AG demo chargees en memoire uniquement (ephemere)
+if "demo_historique_session" not in st.session_state:
+    st.session_state.demo_historique_session = []
+
 # ─── Onglets ───────────────────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🎙️ Transcription", "📋 Analyse AG", "📄 Proces-verbal",
@@ -695,32 +699,66 @@ with tab5:
     with st.expander("🎭 Charger des donnees de demonstration", expanded=nb_total == 0):
         st.caption("Charge 4 AG fictives : 2 x Copropriete Les Acacias (2023+2024), Association Elan Vitry, SAS Innov Tech.")
         st.caption("Permet de tester dossiers, comparaison N/N-1, exports sans cle API.")
-        if st.button("📥 Charger les 4 AG demo", type="secondary", key="btn_demo_hist"):
-            # Construire un index des AG existantes (entite + date) pour eviter les doublons
-            ag_existantes = {
-                (ag["entite"], ag["date_ag"])
-                for ag in historique_manager.lister_ag()
-            }
-            nb_charge = 0
-            nb_ignore = 0
-            for entree in historique_demo.DEMO_HISTORIQUE:
-                infos = entree["analyse"].get("informations_generales", {})
-                cle = (infos.get("entite", ""), infos.get("date", ""))
-                if cle in ag_existantes:
-                    nb_ignore += 1
+        col_demo1, col_demo2 = st.columns(2)
+        with col_demo1:
+            if st.button("📥 Charger les 4 AG demo (session)", type="secondary", key="btn_demo_hist"):
+                # Chargement en memoire uniquement — ephemere, disparait au rechargement
+                ag_session_existantes = {
+                    (e["analyse"].get("informations_generales", {}).get("entite", ""),
+                     e["analyse"].get("informations_generales", {}).get("date", ""))
+                    for e in st.session_state.demo_historique_session
+                }
+                nb_charge = 0
+                for entree in historique_demo.DEMO_HISTORIQUE:
+                    infos = entree["analyse"].get("informations_generales", {})
+                    cle = (infos.get("entite", ""), infos.get("date", ""))
+                    if cle not in ag_session_existantes:
+                        st.session_state.demo_historique_session.append(entree)
+                        nb_charge += 1
+                if nb_charge > 0:
+                    st.success(f"{nb_charge} AG demo chargees en session ✅ (ephemere — non sauvegardees sur disque)")
+                    st.rerun()
                 else:
-                    historique_manager.sauvegarder_ag(entree["analyse"], entree.get("pv_texte"))
-                    nb_charge += 1
-            if nb_charge > 0:
-                st.success(f"{nb_charge} AG demo chargees ✅" + (f" ({nb_ignore} deja presentes, ignorees)" if nb_ignore else ""))
-                st.rerun()
-            else:
-                st.info("Toutes les AG demo sont deja presentes dans l historique.")
+                    st.info("Donnees demo deja chargees dans cette session.")
+        with col_demo2:
+            if st.session_state.demo_historique_session:
+                if st.button("🗑️ Vider la demo session", key="btn_vider_demo"):
+                    st.session_state.demo_historique_session = []
+                    st.rerun()
 
-    if nb_total == 0:
+    # ── AG demo session (ephemeres) ───────────────────────────────────────────
+    demo_session = st.session_state.demo_historique_session
+    if demo_session:
+        st.caption(f"🎭 Session demo : {len(demo_session)} AG (ephemeres — non sauvegardees)")
+        # Grouper par entite
+        from collections import defaultdict
+        demo_par_entite = defaultdict(list)
+        for entree in demo_session:
+            entite = entree["analyse"].get("informations_generales", {}).get("entite", "Inconnu")
+            demo_par_entite[entite].append(entree)
+
+        for entite, entrees in demo_par_entite.items():
+            type_ag = entrees[0]["analyse"].get("type_ag", "autre").replace("_", " ").upper()
+            with st.expander(f"🎭 **{entite}** — {len(entrees)} AG  |  {type_ag}  *(demo session)*", expanded=True):
+                for i, entree in enumerate(entrees):
+                    infos = entree["analyse"].get("informations_generales", {})
+                    date_ag = infos.get("date", "date inconnue")
+                    nb_res = len(entree["analyse"].get("resolutions", []))
+                    with st.expander(f"AG du {date_ag} — {nb_res} resolution(s)", expanded=False):
+                        if st.button("📂 Charger cette AG", key=f"load_demo_{entite}_{i}"):
+                            st.session_state.analyse = entree["analyse"]
+                            st.session_state.pv_texte = entree.get("pv_texte")
+                            st.session_state.transcription = ""
+                            st.session_state.historique_fichier_actuel = None
+                            st.success(f"AG demo du {date_ag} chargee ✅ — allez dans l onglet Analyse AG")
+
+        st.divider()
+
+    # ── AG reelles (disque) ───────────────────────────────────────────────────
+    if nb_total == 0 and not demo_session:
         st.info("Aucune AG sauvegardee. Utilisez le bouton demo ci-dessus ou analysez une AG avec votre cle API.")
-    else:
-        st.caption(f"{nb_total} AG — {len(dossiers)} dossier(s)")
+    elif nb_total > 0:
+        st.caption(f"💾 Historique disque : {nb_total} AG — {len(dossiers)} dossier(s)")
 
         # ── Vue groupee par dossier ───────────────────────────────────────────
         for dossier in dossiers:
