@@ -26,7 +26,7 @@ def analyser_transcription(transcription: str, api_key: str) -> dict:
 
     message = client.messages.create(
         model="claude-opus-4-6",
-        max_tokens=4096,
+        max_tokens=8192,
         system=SYSTEM_ANALYSE_AG,
         messages=[
             {

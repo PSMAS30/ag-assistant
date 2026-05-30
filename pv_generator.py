@@ -28,7 +28,7 @@ def generer_pv_texte(analyse: dict, api_key: str) -> str:
 
     message = client.messages.create(
         model="claude-opus-4-6",
-        max_tokens=4096,
+        max_tokens=8192,
         system=system_prompt,
         messages=[
             {
