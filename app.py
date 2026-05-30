@@ -1,6 +1,6 @@
-﻿"""
+"""
 app.py — Interface Streamlit pour l Assistant AG
-4 onglets : Transcription · Analyse · PV · Questions
+5 onglets : Transcription · Analyse · PV · Questions · Historique
 """
 
 import os
@@ -14,6 +14,7 @@ import analyzer
 import transcriber
 import pv_generator
 import word_generator
+import historique_manager
 
 load_dotenv()
 
@@ -101,12 +102,12 @@ with st.sidebar:
     st.caption("🛠️ Stack : faster-whisper · Claude · Streamlit")
 
 # ─── Session state ─────────────────────────────────────────────────────────────
-for key in ["transcription", "segments", "segments_diarises", "locuteurs", "mapping_locuteurs", "analyse", "pv_texte", "demo_key"]:
+for key in ["transcription", "segments", "segments_diarises", "locuteurs", "mapping_locuteurs", "analyse", "pv_texte", "demo_key", "historique_fichier_actuel"]:
     if key not in st.session_state:
         st.session_state[key] = None
 
 # ─── Onglets ───────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4 = st.tabs(["🎙️ Transcription", "📋 Analyse AG", "📄 Proces-verbal", "💬 Questions"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["🎙️ Transcription", "📋 Analyse AG", "📄 Proces-verbal", "💬 Questions", "🗂️ Historique"])
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ONGLET 1 — TRANSCRIPTION
@@ -321,7 +322,13 @@ with tab2:
                         st.session_state.analyse = analyzer.analyser_transcription(
                             st.session_state.transcription, api_key
                         )
-                        st.success("Analyse terminee ✅")
+                        # Sauvegarde automatique dans l historique
+                        try:
+                            chemin = historique_manager.sauvegarder_ag(st.session_state.analyse)
+                            st.session_state.historique_fichier_actuel = chemin
+                        except Exception:
+                            pass
+                        st.success("Analyse terminee ✅ — sauvegardee dans l historique")
                     except Exception as e:
                         st.error(f"Erreur : {e}")
             else:
@@ -433,6 +440,12 @@ with tab3:
                         st.session_state.pv_texte = pv_generator.generer_pv_texte(
                             st.session_state.analyse, api_key
                         )
+                        # Audit trail
+                        if st.session_state.historique_fichier_actuel:
+                            historique_manager.ajouter_action_audit(
+                                st.session_state.historique_fichier_actuel,
+                                "pv_genere", st.session_state.pv_texte
+                            )
                         st.success("PV genere ✅")
                     except Exception as e:
                         st.error(f"Erreur : {e}")
@@ -554,3 +567,64 @@ with tab4:
                     st.info(reponse)
                 except Exception as e:
                     st.error(f"Erreur : {e}")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ONGLET 5 — HISTORIQUE
+# ══════════════════════════════════════════════════════════════════════════════
+with tab5:
+    st.header("🗂️ Historique des assemblees generales")
+
+    ag_list = historique_manager.lister_ag()
+    nb = historique_manager.nb_ag_sauvegardees()
+
+    if nb == 0:
+        st.info("Aucune AG sauvegardee pour l instant. Analysez une AG avec votre cle API pour la voir apparaitre ici.")
+    else:
+        st.caption(f"{nb} AG sauvegardee(s) — triees par date decroissante")
+
+        for ag in ag_list:
+            # En-tete de chaque carte
+            date_sauv = ag["sauvegarde_le"][:10] if ag["sauvegarde_le"] else "?"
+            heure_sauv = ag["sauvegarde_le"][11:16] if len(ag["sauvegarde_le"]) > 16 else ""
+            type_label = ag["type_ag"].replace("_", " ").upper()
+            pv_badge = "📄 PV" if ag["a_pv"] else ""
+
+            with st.expander(
+                f"**{ag['entite']}** — {ag['date_ag'] or 'date inconnue'} | {type_label} | {ag['nb_resolutions']} resolution(s) {pv_badge}",
+                expanded=False,
+            ):
+                col1, col2, col3 = st.columns([2, 2, 1])
+                col1.caption(f"Sauvegarde le {date_sauv} a {heure_sauv}")
+                col2.caption(f"Fichier : {ag['nom_fichier']}")
+
+                # Audit trail
+                audit = ag.get("audit_trail", [])
+                if len(audit) > 1:
+                    with st.expander(f"📋 Audit trail ({len(audit)} action(s))", expanded=False):
+                        for acte in audit:
+                            ts = acte.get("timestamp", "")[:16].replace("T", " ")
+                            action = acte.get("action", "").replace("_", " ")
+                            details = acte.get("details", "")
+                            st.write(f"• `{ts}` — **{action}** {': ' + details[:80] if details and len(details) < 80 else ''}")
+
+                # Boutons action
+                btn1, btn2 = st.columns(2)
+                with btn1:
+                    if st.button("📂 Charger cette AG", key=f"load_{ag['nom_fichier']}"):
+                        try:
+                            entree = historique_manager.charger_ag(ag["fichier"])
+                            st.session_state.analyse = entree["analyse"]
+                            st.session_state.pv_texte = entree.get("pv_texte")
+                            st.session_state.transcription = entree["analyse"].get("transcription_brute", "")
+                            st.session_state.historique_fichier_actuel = ag["fichier"]
+                            st.success(f"AG de {ag['entite']} chargee ✅ — allez dans l onglet Analyse AG")
+                        except Exception as e:
+                            st.error(f"Erreur chargement : {e}")
+
+                with btn2:
+                    if st.button("🗑️ Supprimer", key=f"del_{ag['nom_fichier']}"):
+                        if historique_manager.supprimer_ag(ag["fichier"]):
+                            st.success("AG supprimee de l historique.")
+                            st.rerun()
+                        else:
+                            st.error("Impossible de supprimer.")
