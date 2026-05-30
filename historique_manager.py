@@ -24,8 +24,8 @@ def _nom_dossier(entite: str) -> str:
 
 
 def _nom_fichier(type_ag: str) -> str:
-    """Genere un nom de fichier unique base sur le timestamp."""
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    """Genere un nom de fichier unique base sur le timestamp (microseconde incluse)."""
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     return f"{ts}_{type_ag}.json"
 
 
