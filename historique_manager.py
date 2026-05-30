@@ -1,7 +1,7 @@
 """
 historique_manager.py — Gestion de l historique des AG analysees
-Stockage local dans historique/ — un fichier JSON par AG.
-Inclut audit trail basique (actions horodatees).
+Stockage par dossier entite : historique/{entite}/{timestamp}.json
+Inclut audit trail, comparaison N vs N-1, export/import ZIP.
 """
 
 import json
@@ -17,16 +17,53 @@ def _assurer_dossier():
     HISTORIQUE_DIR.mkdir(exist_ok=True)
 
 
-def _nom_fichier(entite: str, type_ag: str) -> str:
-    """Genere un nom de fichier unique base sur timestamp + entite."""
+def _nom_dossier(entite: str) -> str:
+    """Sanitize le nom d entite pour en faire un nom de dossier valide."""
+    clean = "".join(c for c in entite if c.isalnum() or c in " _-")[:40].strip()
+    return clean.replace(" ", "_") or "Sans_nom"
+
+
+def _nom_fichier(type_ag: str) -> str:
+    """Genere un nom de fichier unique base sur le timestamp."""
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    entite_clean = "".join(c for c in entite if c.isalnum() or c in " _-")[:30].strip().replace(" ", "_")
-    return f"{ts}_{entite_clean}.json"
+    return f"{ts}_{type_ag}.json"
+
+
+def _migrer_fichiers_plats() -> int:
+    """
+    Migration transparente : deplace les anciens fichiers JSON plats
+    (historique/*.json) dans leurs sous-dossiers respectifs.
+
+    Returns:
+        int: Nombre de fichiers migres
+    """
+    _assurer_dossier()
+    count = 0
+    for fichier in list(HISTORIQUE_DIR.glob("*.json")):
+        try:
+            with open(fichier, "r", encoding="utf-8") as f:
+                entree = json.load(f)
+            meta = entree.get("meta_historique", {})
+            entite = meta.get("entite", "Sans_nom")
+            nom_dossier = _nom_dossier(entite)
+            sous_dossier = HISTORIQUE_DIR / nom_dossier
+            sous_dossier.mkdir(exist_ok=True)
+            dest = sous_dossier / fichier.name
+            fichier.rename(dest)
+            # Mettre a jour le champ dossier dans la meta
+            entree["meta_historique"]["dossier"] = nom_dossier
+            with open(dest, "w", encoding="utf-8") as f:
+                json.dump(entree, f, ensure_ascii=False, indent=2)
+            count += 1
+        except Exception:
+            continue
+    return count
 
 
 def sauvegarder_ag(analyse: dict, pv_texte: str = None) -> str:
     """
     Sauvegarde une AG analysee dans l historique.
+    Chemin : historique/{entite}/{timestamp}_{type_ag}.json
 
     Args:
         analyse: JSON structure produit par analyzer.analyser_transcription()
@@ -42,11 +79,17 @@ def sauvegarder_ag(analyse: dict, pv_texte: str = None) -> str:
     type_ag = analyse.get("type_ag", "autre")
     date_ag = infos.get("date", analyse.get("date", ""))
     nb_resolutions = len(analyse.get("resolutions", []))
+    nom_dossier = _nom_dossier(entite)
+
+    # Creer le sous-dossier entite
+    sous_dossier = HISTORIQUE_DIR / nom_dossier
+    sous_dossier.mkdir(exist_ok=True)
 
     entree = {
         "meta_historique": {
             "sauvegarde_le": datetime.now().isoformat(),
             "entite": entite,
+            "dossier": nom_dossier,
             "type_ag": type_ag,
             "date_ag": date_ag,
             "nb_resolutions": nb_resolutions,
@@ -63,8 +106,8 @@ def sauvegarder_ag(analyse: dict, pv_texte: str = None) -> str:
         "pv_texte": pv_texte,
     }
 
-    nom = _nom_fichier(entite, type_ag)
-    chemin = HISTORIQUE_DIR / nom
+    nom = _nom_fichier(type_ag)
+    chemin = sous_dossier / nom
     with open(chemin, "w", encoding="utf-8") as f:
         json.dump(entree, f, ensure_ascii=False, indent=2)
 
@@ -97,16 +140,51 @@ def ajouter_action_audit(chemin_fichier: str, action: str, details: str = "") ->
         pass  # Audit trail non bloquant
 
 
-def lister_ag() -> list:
+def lister_dossiers() -> list:
+    """
+    Retourne la liste des dossiers (entites) dans l historique.
+
+    Returns:
+        list: [{"dossier": str, "nb_ag": int, "entite": str}]
+    """
+    _assurer_dossier()
+    _migrer_fichiers_plats()
+    dossiers = []
+    for d in sorted(HISTORIQUE_DIR.iterdir()):
+        if d.is_dir():
+            nb = len(list(d.glob("*.json")))
+            if nb > 0:
+                dossiers.append({
+                    "dossier": d.name,
+                    "entite": d.name.replace("_", " "),
+                    "nb_ag": nb,
+                })
+    return dossiers
+
+
+def lister_ag(dossier: str = None) -> list:
     """
     Retourne la liste des AG sauvegardees, triees par date decroissante.
 
+    Args:
+        dossier: Nom du sous-dossier (entite) — None = toutes les entites
+
     Returns:
-        list: [{fichier, entite, type_ag, date_ag, nb_resolutions, a_pv, sauvegarde_le}]
+        list: [{fichier, nom_fichier, dossier, entite, type_ag, date_ag,
+                nb_resolutions, a_pv, sauvegarde_le, audit_trail}]
     """
     _assurer_dossier()
+    _migrer_fichiers_plats()
+
+    if dossier:
+        pattern = f"{dossier}/*.json"
+    else:
+        pattern = "**/*.json"
+
     ag_list = []
-    for fichier in sorted(HISTORIQUE_DIR.glob("*.json"), reverse=True):
+    for fichier in sorted(HISTORIQUE_DIR.glob(pattern), reverse=True):
+        if not fichier.is_file():
+            continue
         try:
             with open(fichier, "r", encoding="utf-8") as f:
                 entree = json.load(f)
@@ -114,6 +192,7 @@ def lister_ag() -> list:
             ag_list.append({
                 "fichier": str(fichier),
                 "nom_fichier": fichier.name,
+                "dossier": fichier.parent.name,
                 "entite": meta.get("entite", "Inconnu"),
                 "type_ag": meta.get("type_ag", "autre"),
                 "date_ag": meta.get("date_ag", ""),
@@ -139,42 +218,59 @@ def charger_ag(chemin_fichier: str) -> dict:
 
 
 def supprimer_ag(chemin_fichier: str) -> bool:
-    """Supprime une AG de l historique."""
+    """Supprime une AG et nettoie le dossier si vide."""
     try:
+        chemin = Path(chemin_fichier)
         os.unlink(chemin_fichier)
+        # Nettoyer le dossier parent s il est vide
+        parent = chemin.parent
+        if parent != HISTORIQUE_DIR and parent.is_dir() and not any(parent.iterdir()):
+            parent.rmdir()
         return True
     except Exception:
         return False
 
 
-def nb_ag_sauvegardees() -> int:
-    """Retourne le nombre d AG dans l historique."""
+def nb_ag_sauvegardees(dossier: str = None) -> int:
+    """Retourne le nombre d AG dans l historique (total ou par dossier)."""
     _assurer_dossier()
-    return len(list(HISTORIQUE_DIR.glob("*.json")))
+    if dossier:
+        return len(list((HISTORIQUE_DIR / dossier).glob("*.json")))
+    return len(list(HISTORIQUE_DIR.glob("**/*.json")))
 
 
 # ── Export / Import historique ────────────────────────────────────────────────
 
-def exporter_historique() -> bytes:
+def exporter_historique(dossier: str = None) -> bytes:
     """
-    Exporte tout l historique en ZIP (bytes).
-    Permet de sauvegarder et restaurer l historique sur Streamlit Cloud.
+    Exporte l historique en ZIP en preservant l arborescence par entite.
+
+    Args:
+        dossier: Exporter un seul dossier (None = tout)
 
     Returns:
-        bytes: Archive ZIP contenant tous les fichiers JSON de l historique
+        bytes: Archive ZIP avec structure {dossier}/{fichier}.json
     """
     import zipfile, io
     _assurer_dossier()
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for fichier in HISTORIQUE_DIR.glob("*.json"):
-            zf.write(fichier, fichier.name)
+        if dossier:
+            sous_dir = HISTORIQUE_DIR / dossier
+            for fichier in sous_dir.glob("*.json"):
+                zf.write(fichier, f"{dossier}/{fichier.name}")
+        else:
+            for fichier in HISTORIQUE_DIR.glob("**/*.json"):
+                # Chemin relatif : {dossier}/{fichier.json}
+                rel = fichier.relative_to(HISTORIQUE_DIR)
+                zf.write(fichier, str(rel))
     return buffer.getvalue()
 
 
 def importer_historique(zip_bytes: bytes) -> int:
     """
     Importe un historique depuis un ZIP.
+    Supporte ZIP plat (ancienne version) et ZIP avec sous-dossiers.
 
     Args:
         zip_bytes: Contenu du fichier ZIP
@@ -187,10 +283,28 @@ def importer_historique(zip_bytes: bytes) -> int:
     count = 0
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
         for name in zf.namelist():
-            if name.endswith(".json") and "/" not in name:
-                dest = HISTORIQUE_DIR / name
-                dest.write_bytes(zf.read(name))
-                count += 1
+            if not name.endswith(".json"):
+                continue
+            parts = name.replace("\\", "/").split("/")
+            if len(parts) == 1:
+                # Fichier plat (ancienne version) — detecter le dossier depuis le contenu
+                try:
+                    data = json.loads(zf.read(name))
+                    meta = data.get("meta_historique", {})
+                    entite = meta.get("entite", "Import")
+                    nom_dossier = _nom_dossier(entite)
+                except Exception:
+                    nom_dossier = "Import"
+                dest_dir = HISTORIQUE_DIR / nom_dossier
+            else:
+                # Fichier avec sous-dossier : {dossier}/{fichier}.json
+                nom_dossier = parts[0]
+                dest_dir = HISTORIQUE_DIR / nom_dossier
+
+            dest_dir.mkdir(exist_ok=True)
+            dest = dest_dir / parts[-1]
+            dest.write_bytes(zf.read(name))
+            count += 1
     return count
 
 
@@ -205,15 +319,7 @@ def comparer_ag(chemin_ag1: str, chemin_ag2: str) -> dict:
         chemin_ag2: Fichier AG N (plus recente)
 
     Returns:
-        dict: Rapport de comparaison {
-            "ag1": meta AG1,
-            "ag2": meta AG2,
-            "quorum": {ag1, ag2, evolution},
-            "participants": {ag1, ag2, evolution},
-            "resolutions": [comparaison par titre],
-            "nouvelles_resolutions": [],
-            "resolutions_disparues": [],
-        }
+        dict: Rapport de comparaison
     """
     entree1 = charger_ag(chemin_ag1)
     entree2 = charger_ag(chemin_ag2)
@@ -233,7 +339,6 @@ def comparer_ag(chemin_ag1: str, chemin_ag2: str) -> dict:
         q = p.get("quorum_calcule")
         return int(q) if q and str(q).isdigit() else None
 
-    # Comparaison resolutions par titre normalise
     def _normaliser(titre: str) -> str:
         return titre.lower().strip() if titre else ""
 
@@ -262,8 +367,8 @@ def comparer_ag(chemin_ag1: str, chemin_ag2: str) -> dict:
         })
 
     return {
-        "ag1": {"entite": meta1.get("entite"), "date": meta1.get("date_ag"), "sauvegarde_le": meta1.get("sauvegarde_le", "")[:10]},
-        "ag2": {"entite": meta2.get("entite"), "date": meta2.get("date_ag"), "sauvegarde_le": meta2.get("sauvegarde_le", "")[:10]},
+        "ag1": {"entite": meta1.get("entite"), "date": meta1.get("date_ag"), "dossier": meta1.get("dossier", ""), "sauvegarde_le": meta1.get("sauvegarde_le", "")[:10]},
+        "ag2": {"entite": meta2.get("entite"), "date": meta2.get("date_ag"), "dossier": meta2.get("dossier", ""), "sauvegarde_le": meta2.get("sauvegarde_le", "")[:10]},
         "quorum": {
             "ag1_atteint": p1.get("quorum_atteint"),
             "ag2_atteint": p2.get("quorum_atteint"),

@@ -683,13 +683,24 @@ with tab4:
 with tab5:
     st.header("🗂️ Historique des assemblees generales")
 
-    ag_list = historique_manager.lister_ag()
-    nb = historique_manager.nb_ag_sauvegardees()
+    dossiers = historique_manager.lister_dossiers()
+    nb_total = historique_manager.nb_ag_sauvegardees()
 
-    if nb == 0:
+    if nb_total == 0:
         st.info("Aucune AG sauvegardee pour l instant. Analysez une AG avec votre cle API pour la voir apparaitre ici.")
     else:
-        st.caption(f"{nb} AG sauvegardee(s) — triees par date decroissante")
+        # ── Selecteur de dossier ──────────────────────────────────────────────
+        options_dossiers = ["📁 Tous les dossiers"] + [f"🏢 {d['entite']} ({d['nb_ag']} AG)" for d in dossiers]
+        choix_dossier = st.selectbox("Filtrer par entite", options_dossiers, index=0)
+
+        dossier_filtre = None
+        if choix_dossier != "📁 Tous les dossiers":
+            idx = options_dossiers.index(choix_dossier) - 1
+            dossier_filtre = dossiers[idx]["dossier"]
+
+        ag_list = historique_manager.lister_ag(dossier=dossier_filtre)
+        nb = len(ag_list)
+        st.caption(f"{nb} AG — {len(dossiers)} dossier(s) au total")
 
         for ag in ag_list:
             # En-tete de chaque carte
@@ -697,9 +708,10 @@ with tab5:
             heure_sauv = ag["sauvegarde_le"][11:16] if len(ag["sauvegarde_le"]) > 16 else ""
             type_label = ag["type_ag"].replace("_", " ").upper()
             pv_badge = "📄 PV" if ag["a_pv"] else ""
+            dossier_badge = f"📁 {ag['dossier']}" if not dossier_filtre else ""
 
             with st.expander(
-                f"**{ag['entite']}** — {ag['date_ag'] or 'date inconnue'} | {type_label} | {ag['nb_resolutions']} resolution(s) {pv_badge}",
+                f"**{ag['entite']}** — {ag['date_ag'] or 'date inconnue'} | {type_label} | {ag['nb_resolutions']} resolution(s) {pv_badge} {dossier_badge}",
                 expanded=False,
             ):
                 col1, col2, col3 = st.columns([2, 2, 1])
@@ -746,18 +758,24 @@ with tab5:
 
     with col_exp:
         st.caption("Exporter pour sauvegarde ou transfert")
-        if st.button("📦 Exporter l historique (.zip)", use_container_width=True):
+        # Choix export : tout ou un dossier specifique
+        options_exp = ["Tous les dossiers"] + [d["entite"] for d in dossiers]
+        choix_exp = st.selectbox("Dossier a exporter", options_exp, key="export_dossier_select")
+        dossier_exp = None if choix_exp == "Tous les dossiers" else dossiers[options_exp.index(choix_exp) - 1]["dossier"]
+
+        if st.button("📦 Exporter (.zip)", use_container_width=True):
             try:
-                zip_bytes = historique_manager.exporter_historique()
+                zip_bytes = historique_manager.exporter_historique(dossier=dossier_exp)
                 if zip_bytes:
+                    nom_zip = f"historique_{dossier_exp or 'complet'}_{datetime.now().strftime('%Y%m%d')}.zip"
                     st.download_button(
                         "📥 Telecharger le ZIP",
                         data=zip_bytes,
-                        file_name=f"historique_ag_{datetime.now().strftime('%Y%m%d')}.zip",
+                        file_name=nom_zip,
                         mime="application/zip",
                     )
                 else:
-                    st.info("Historique vide — rien a exporter.")
+                    st.info("Dossier vide — rien a exporter.")
             except Exception as e:
                 st.error(f"Erreur export : {e}")
 
