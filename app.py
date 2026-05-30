@@ -687,15 +687,18 @@ with tab5:
     dossiers = historique_manager.lister_dossiers()
     nb_total = historique_manager.nb_ag_sauvegardees()
 
-    if nb_total == 0:
-        st.info("Aucune AG sauvegardee pour l instant. Analysez une AG avec votre cle API pour la voir apparaitre ici.")
-        st.divider()
-        st.caption("🎭 Mode demo — charger des donnees d exemple pour explorer les fonctionnalites")
-        if st.button("📥 Charger les donnees demo (4 AG — 2 dossiers Acacias)", type="secondary"):
+    # ── Bouton demo — toujours visible ───────────────────────────────────────
+    with st.expander("🎭 Charger des donnees de demonstration", expanded=nb_total == 0):
+        st.caption("Charge 4 AG fictives : 2 x Copropriete Les Acacias (2023+2024), Association Elan Vitry, SAS Innov Tech.")
+        st.caption("Permet de tester dossiers, comparaison N/N-1, exports sans cle API.")
+        if st.button("📥 Charger les 4 AG demo", type="secondary", key="btn_demo_hist"):
             for entree in historique_demo.DEMO_HISTORIQUE:
                 historique_manager.sauvegarder_ag(entree["analyse"], entree.get("pv_texte"))
-            st.success(f"{len(historique_demo.DEMO_HISTORIQUE)} AG demo chargees ✅ — rechargement...")
+            st.success(f"{len(historique_demo.DEMO_HISTORIQUE)} AG demo chargees ✅")
             st.rerun()
+
+    if nb_total == 0:
+        st.info("Aucune AG sauvegardee. Utilisez le bouton demo ci-dessus ou analysez une AG avec votre cle API.")
     else:
         # ── Selecteur de dossier ──────────────────────────────────────────────
         options_dossiers = ["📁 Tous les dossiers"] + [f"🏢 {d['entite']} ({d['nb_ag']} AG)" for d in dossiers]
