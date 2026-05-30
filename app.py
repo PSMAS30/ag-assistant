@@ -349,10 +349,14 @@ with tab1:
 with tab2:
     st.header("📋 Analyse de l assemblée générale")
 
-    if not st.session_state.transcription:
+    if not st.session_state.transcription and not st.session_state.analyse:
         st.info("👈 Commencez par charger ou transcrire une AG dans l onglet Transcription.")
-    else:
-        if st.button("Analyser l AG", type="primary"):
+    elif st.session_state.analyse and not st.session_state.transcription:
+        # AG chargee depuis l historique — afficher l analyse directement
+        st.info("ℹ️ AG chargee depuis l historique — analyse disponible ci-dessous.")
+    if st.session_state.transcription or st.session_state.analyse:
+        # Bouton Analyser uniquement si une transcription est disponible
+        if st.session_state.transcription and st.button("Analyser l AG", type="primary"):
             if mode == "🎭 Demo (sans cle API)" and st.session_state.demo_key:
                 d = demo_data.get_demo(st.session_state.demo_key)
                 # Priorite : cle saisie > cle .env locale > simulation
