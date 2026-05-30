@@ -1,0 +1,138 @@
+{
+  "meta": {
+    "version": "2.0",
+    "genere_par": "AG Assistant — assiste par IA",
+    "niveau_confiance_global": "eleve",
+    "avertissement": "Document genere par assistance IA. Doit etre relu, corrige et valide avant toute valeur juridique."
+  },
+  "type_ag": "pme_sas",
+  "informations_generales": {
+    "entite": "SAS Innov Tech",
+    "date": "30/04/2024",
+    "lieu": "45 avenue de la Republique, 69003 Lyon",
+    "type_assemblee": "AGO",
+    "heure_ouverture": "14:00",
+    "heure_cloture": "16:15",
+    "president_seance": "Alexandre Fontaine",
+    "secretaire": "non mentionne dans la transcription",
+    "scrutateurs": []
+  },
+  "participants": {
+    "presents": [
+      {"nom": "Alexandre Fontaine", "qualite": "associe", "voix_ou_parts": 600, "observations": "President"},
+      {"nom": "Nadia Benchikh", "qualite": "associe", "voix_ou_parts": 300, "observations": ""},
+      {"nom": "Thomas Roux", "qualite": "associe", "voix_ou_parts": 250, "observations": "Directeur financier"},
+      {"nom": "Claire Vidal", "qualite": "associe", "voix_ou_parts": 200, "observations": ""},
+      {"nom": "Marc Lejeune", "qualite": "associe", "voix_ou_parts": 150, "observations": ""}
+    ],
+    "representes": [],
+    "absents_excuses": [],
+    "total_presents": 5,
+    "total_representes": 0,
+    "total_votants": 5,
+    "total_voix": 1500,
+    "quorum_requis": "Selon statuts SAS",
+    "quorum_calcule": 1500,
+    "quorum_atteint": true,
+    "base_legale_quorum": "Statuts SAS Innov Tech",
+    "observations_quorum": "100% des parts representees — tous les associes presents"
+  },
+  "ordre_du_jour": [
+    {"numero": 1, "intitule": "Approbation des comptes annuels 2023", "traite": true},
+    {"numero": 2, "intitule": "Affectation du resultat", "traite": true},
+    {"numero": 3, "intitule": "Renouvellement du mandat du commissaire aux comptes", "traite": true},
+    {"numero": 4, "intitule": "Autorisation d emprunt bancaire", "traite": true}
+  ],
+  "resolutions": [
+    {
+      "numero": 1,
+      "titre": "Approbation comptes annuels 2023",
+      "description": "Approbation des comptes annuels de l exercice 2023. CA : 2,3 M euros (+18%). Resultat net : 142 000 euros. Capitaux propres : 380 000 euros.",
+      "locuteur_proposition": "Thomas Roux",
+      "points_discussion": ["Progression de 18% du CA par rapport a 2022"],
+      "timestamps": {"debut": "14:00", "fin": null},
+      "votes": {"pour": 1500, "contre": 0, "abstentions": 0, "non_participants": null, "unite": "parts"},
+      "majorite_requise": "selon_statuts",
+      "majorite_atteinte": true,
+      "statut": "adoptée",
+      "base_legale": "Statuts SAS — AGO approbation comptes",
+      "mentions_obligatoires_presentes": true,
+      "niveau_confiance": "eleve",
+      "sections_incertaines": []
+    },
+    {
+      "numero": 2,
+      "titre": "Affectation du resultat",
+      "description": "Affectation du resultat net 142 000 euros : 14 200 euros en reserve legale, 50 000 euros en reserves facultatives, 77 800 euros en dividendes au prorata des parts.",
+      "locuteur_proposition": "Alexandre Fontaine",
+      "points_discussion": [],
+      "timestamps": {"debut": null, "fin": null},
+      "votes": {"pour": 1500, "contre": 0, "abstentions": 0, "non_participants": null, "unite": "parts"},
+      "majorite_requise": "selon_statuts",
+      "majorite_atteinte": true,
+      "statut": "adoptée",
+      "base_legale": "Statuts SAS — AGO affectation resultat",
+      "mentions_obligatoires_presentes": true,
+      "niveau_confiance": "eleve",
+      "sections_incertaines": []
+    },
+    {
+      "numero": 3,
+      "titre": "Renouvellement mandat commissaire aux comptes",
+      "description": "Renouvellement du mandat du cabinet Ernst et Martin pour 6 exercices.",
+      "locuteur_proposition": "Alexandre Fontaine",
+      "points_discussion": ["Marc Lejeune vote contre"],
+      "timestamps": {"debut": null, "fin": null},
+      "votes": {"pour": 1350, "contre": 150, "abstentions": 0, "non_participants": null, "unite": "parts"},
+      "majorite_requise": "selon_statuts",
+      "majorite_atteinte": true,
+      "statut": "adoptée",
+      "base_legale": "Statuts SAS",
+      "mentions_obligatoires_presentes": true,
+      "niveau_confiance": "eleve",
+      "sections_incertaines": []
+    },
+    {
+      "numero": 4,
+      "titre": "Autorisation emprunt bancaire 200 000 euros",
+      "description": "Autorisation d emprunt aupres du Credit Industriel de Lyon de 200 000 euros maximum sur 5 ans pour financer l acquisition de nouveaux equipements de production.",
+      "locuteur_proposition": "Alexandre Fontaine",
+      "points_discussion": [],
+      "timestamps": {"debut": null, "fin": "16:15"},
+      "votes": {"pour": 1500, "contre": 0, "abstentions": 0, "non_participants": null, "unite": "parts"},
+      "majorite_requise": "selon_statuts",
+      "majorite_atteinte": true,
+      "statut": "adoptée",
+      "base_legale": "Statuts SAS — autorisation emprunt",
+      "mentions_obligatoires_presentes": true,
+      "niveau_confiance": "eleve",
+      "sections_incertaines": []
+    }
+  ],
+  "decisions_finales": [
+    {"resolution": 1, "titre": "Comptes 2023", "statut": "adoptée", "effet": "Comptes 2023 approuves a l unanimite"},
+    {"resolution": 2, "titre": "Affectation resultat", "statut": "adoptée", "effet": "Dividendes de 77 800 euros distribues — reserves dotees"},
+    {"resolution": 3, "titre": "CAC Ernst et Martin", "statut": "adoptée", "effet": "Mandat renouvele pour 6 exercices"},
+    {"resolution": 4, "titre": "Emprunt 200 000 euros", "statut": "adoptée", "effet": "Emprunt autorise aupres du Credit Industriel de Lyon"}
+  ],
+  "points_divers": [],
+  "conformite_legale": {
+    "mentions_obligatoires_pv": {
+      "date_et_lieu": true,
+      "president_seance": true,
+      "liste_presents": true,
+      "quorum_constate": true,
+      "ordre_du_jour": true,
+      "resultats_votes": true
+    },
+    "alertes": ["Secretaire de seance non mentionne"],
+    "recommandations": ["Faire signer le PV par le president de seance Alexandre Fontaine"]
+  },
+  "observations_juridiques": "AGO valide. Totalite du capital representee. 4 resolutions adoptees dont 3 a l unanimite. Renouvellement CAC conforme. Autorisation emprunt accordee.",
+  "diarization": [
+    {"timestamp": "14:00", "locuteur": "Alexandre Fontaine", "contenu_resume": "Ouverture de l AGO, constat quorum"},
+    {"timestamp": null, "locuteur": "Thomas Roux", "contenu_resume": "Presentation des comptes annuels 2023"},
+    {"timestamp": null, "locuteur": "Alexandre Fontaine", "contenu_resume": "Presentation affectation resultat et vote resolutions 2 a 4"},
+    {"timestamp": "16:15", "locuteur": "Alexandre Fontaine", "contenu_resume": "Cloture de la seance"}
+  ]
+}

@@ -1,0 +1,36 @@
+# Secrets
+.env
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Audio (fichiers potentiellement volumineux et prives)
+*.mp3
+*.wav
+*.m4a
+*.mp4
+*.ogg
+*.flac
+*.webm
+uploads/
+
+# Modeles IA (caches locaux, non necessaires dans le repo)
+~/.cache/huggingface/
+*.pt
+*.bin
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Fichiers internes projet
+.claude/
+CONTEXT_PROJET2.md

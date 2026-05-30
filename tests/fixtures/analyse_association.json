@@ -1,0 +1,101 @@
+{
+  "meta": {
+    "version": "2.0",
+    "genere_par": "AG Assistant — assiste par IA",
+    "niveau_confiance_global": "eleve",
+    "avertissement": "Document genere par assistance IA. Doit etre relu, corrige et valide avant toute valeur juridique."
+  },
+  "type_ag": "association",
+  "informations_generales": {
+    "entite": "Association Sportive Elan Vitry",
+    "date": "28/09/2024",
+    "lieu": "Gymnase municipal de Vitry-sur-Seine",
+    "type_assemblee": "AG extraordinaire",
+    "heure_ouverture": "19:00",
+    "heure_cloture": "20:25",
+    "president_seance": "Sophie Marchand",
+    "secretaire": "non mentionne dans la transcription",
+    "scrutateurs": []
+  },
+  "participants": {
+    "presents": [
+      {"nom": "43 membres presents", "qualite": "membre", "voix_ou_parts": 43, "observations": ""}
+    ],
+    "representes": [
+      {"mandant": "8 membres", "mandataire": "procurations", "voix_ou_parts": 8}
+    ],
+    "absents_excuses": [],
+    "total_presents": 43,
+    "total_representes": 8,
+    "total_votants": 51,
+    "total_voix": 51,
+    "quorum_requis": "50% des membres + 1 soit 44 voix",
+    "quorum_calcule": 51,
+    "quorum_atteint": true,
+    "base_legale_quorum": "Statuts de l association",
+    "observations_quorum": "51 membres sur 87 inscrits — quorum atteint (44 voix requises)"
+  },
+  "ordre_du_jour": [
+    {"numero": 1, "intitule": "Modification des statuts — cotisation annuelle", "traite": true},
+    {"numero": 2, "intitule": "Acquisition d equipements sportifs", "traite": true}
+  ],
+  "resolutions": [
+    {
+      "numero": 1,
+      "titre": "Modification article 12 — cotisations",
+      "description": "Modification de l article 12 des statuts portant les cotisations adultes de 80 a 110 euros et enfants de 50 a 65 euros, avec tarif reduit a 80 euros sur demande. Effet au 1er janvier 2025.",
+      "locuteur_proposition": "Sophie Marchand",
+      "points_discussion": ["Karim Diallo interroge sur un tarif solidaire — tarif reduit 80 euros sur demande cree"],
+      "timestamps": {"debut": null, "fin": null},
+      "votes": {"pour": 44, "contre": 5, "abstentions": 2, "non_participants": null, "unite": "voix"},
+      "majorite_requise": "deux_tiers",
+      "majorite_atteinte": true,
+      "statut": "adoptée",
+      "base_legale": "Statuts association loi 1901 — majorite 2/3",
+      "mentions_obligatoires_presentes": true,
+      "niveau_confiance": "eleve",
+      "sections_incertaines": []
+    },
+    {
+      "numero": 2,
+      "titre": "Acquisition equipements sportifs",
+      "description": "Achat de 2 buts de football homologues et renouvellement des dossards pour 3 200 euros. Financement : 50% subvention municipale (1 600 euros) + 50% reserves association.",
+      "locuteur_proposition": "Bureau de l association",
+      "points_discussion": [],
+      "timestamps": {"debut": null, "fin": null},
+      "votes": {"pour": 49, "contre": 0, "abstentions": 2, "non_participants": null, "unite": "voix"},
+      "majorite_requise": "simple",
+      "majorite_atteinte": true,
+      "statut": "adoptée",
+      "base_legale": "Statuts association loi 1901",
+      "mentions_obligatoires_presentes": true,
+      "niveau_confiance": "eleve",
+      "sections_incertaines": []
+    }
+  ],
+  "decisions_finales": [
+    {"resolution": 1, "titre": "Modification cotisations", "statut": "adoptée", "effet": "Nouveaux tarifs en vigueur au 1er janvier 2025"},
+    {"resolution": 2, "titre": "Equipements sportifs", "statut": "adoptée", "effet": "Achat autorise pour 3200 euros — financement mixte subvention+reserves"}
+  ],
+  "points_divers": ["Prochaine AG ordinaire prevue en mars 2025"],
+  "conformite_legale": {
+    "mentions_obligatoires_pv": {
+      "date_et_lieu": true,
+      "president_seance": true,
+      "liste_presents": true,
+      "quorum_constate": true,
+      "ordre_du_jour": true,
+      "resultats_votes": true
+    },
+    "alertes": ["Secretaire de seance non identifie", "Scrutateurs non mentionnes"],
+    "recommandations": ["Identifier secretaire et scrutateurs pour le PV final", "Faire signer le PV par president et secretaire"]
+  },
+  "observations_juridiques": "AGE valide. Quorum atteint. Resolution 1 adoptee a la majorite des 2/3 (requis pour modification statuts). Resolution 2 adoptee a l unanimite. PV doit etre signe par president et secretaire.",
+  "diarization": [
+    {"timestamp": "19:00", "locuteur": "Sophie Marchand", "contenu_resume": "Ouverture de l AGE, verification du quorum"},
+    {"timestamp": null, "locuteur": "Sophie Marchand", "contenu_resume": "Presentation modification cotisations"},
+    {"timestamp": null, "locuteur": "Karim Diallo", "contenu_resume": "Question sur tarif solidaire"},
+    {"timestamp": null, "locuteur": "Sophie Marchand", "contenu_resume": "Annonce tarif reduit 80 euros sur demande"},
+    {"timestamp": "20:25", "locuteur": "Sophie Marchand", "contenu_resume": "Cloture, annonce prochaine AG mars 2025"}
+  ]
+}

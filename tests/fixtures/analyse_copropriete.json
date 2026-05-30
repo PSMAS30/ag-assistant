@@ -1,0 +1,141 @@
+{
+  "meta": {
+    "version": "2.0",
+    "genere_par": "AG Assistant — assiste par IA",
+    "niveau_confiance_global": "eleve",
+    "avertissement": "Document genere par assistance IA. Doit etre relu, corrige et valide par les parties avant toute valeur juridique."
+  },
+  "type_ag": "copropriete",
+  "informations_generales": {
+    "entite": "Copropriete Les Acacias",
+    "date": "15/06/2024",
+    "lieu": "Salle communale, 12 rue des Lilas, 75012 Paris",
+    "type_assemblee": "AG ordinaire annuelle",
+    "heure_ouverture": "18:30",
+    "heure_cloture": "20:10",
+    "president_seance": "Maitre Lefebvre (Cabinet Durand et Associes)",
+    "secretaire": "non mentionne dans la transcription",
+    "scrutateurs": []
+  },
+  "participants": {
+    "presents": [
+      {"nom": "14 coproprietaires presents", "qualite": "coproprietaire", "voix_ou_parts": 612, "observations": ""}
+    ],
+    "representes": [
+      {"mandant": "4 coproprietaires representes", "mandataire": "par procuration", "voix_ou_parts": null}
+    ],
+    "absents_excuses": ["6 coproprietaires absents"],
+    "total_presents": 14,
+    "total_representes": 4,
+    "total_votants": 18,
+    "total_voix": 612,
+    "quorum_requis": "Plus de la moitie des tantiemes (>500/1000)",
+    "quorum_calcule": 612,
+    "quorum_atteint": true,
+    "base_legale_quorum": "Loi du 10 juillet 1965",
+    "observations_quorum": "612 milliemes sur 1000 representes — quorum largement atteint"
+  },
+  "ordre_du_jour": [
+    {"numero": 1, "intitule": "Approbation des comptes de l exercice 2023", "traite": true},
+    {"numero": 2, "intitule": "Vote du budget previsionnel 2024-2025", "traite": true},
+    {"numero": 3, "intitule": "Travaux de ravalement de facade", "traite": true},
+    {"numero": 4, "intitule": "Remplacement de la chaudiere collective", "traite": true},
+    {"numero": 5, "intitule": "Questions diverses", "traite": true}
+  ],
+  "resolutions": [
+    {
+      "numero": 1,
+      "titre": "Approbation des comptes 2023",
+      "description": "Approbation des comptes de l exercice 2023. Charges totales : 48 320 euros. Solde crediteur : 2 150 euros.",
+      "locuteur_proposition": "Maitre Lefebvre",
+      "points_discussion": ["Presentation des comptes conformes au budget vote"],
+      "timestamps": {"debut": null, "fin": null},
+      "votes": {"pour": 16, "contre": 1, "abstentions": 1, "non_participants": null, "unite": "voix"},
+      "majorite_requise": "article_24",
+      "majorite_atteinte": true,
+      "statut": "adoptée",
+      "base_legale": "Article 24 loi 10 juillet 1965",
+      "mentions_obligatoires_presentes": true,
+      "niveau_confiance": "eleve",
+      "sections_incertaines": []
+    },
+    {
+      "numero": 2,
+      "titre": "Budget previsionnel 2024-2025",
+      "description": "Approbation du budget previsionnel 2024-2025 a 51 000 euros, soit +5,5% lie a la hausse des couts energetiques.",
+      "locuteur_proposition": "Maitre Lefebvre",
+      "points_discussion": ["Hausse de 5,5% justifiee par les couts energetiques"],
+      "timestamps": {"debut": null, "fin": null},
+      "votes": {"pour": 15, "contre": 2, "abstentions": 1, "non_participants": null, "unite": "voix"},
+      "majorite_requise": "article_24",
+      "majorite_atteinte": true,
+      "statut": "adoptée",
+      "base_legale": "Article 24 loi 10 juillet 1965",
+      "mentions_obligatoires_presentes": true,
+      "niveau_confiance": "eleve",
+      "sections_incertaines": []
+    },
+    {
+      "numero": 3,
+      "titre": "Travaux de ravalement de facade",
+      "description": "Approbation des travaux de ravalement avec l entreprise Facades Pro pour 87 000 euros TTC. Appel de fonds exceptionnel de 3 625 euros par lot.",
+      "locuteur_proposition": "Maitre Lefebvre",
+      "points_discussion": ["Devis Facades Pro retenu par le conseil syndical"],
+      "timestamps": {"debut": null, "fin": null},
+      "votes": {"pour": 13, "contre": 4, "abstentions": 1, "non_participants": null, "unite": "voix"},
+      "majorite_requise": "article_25",
+      "majorite_atteinte": true,
+      "statut": "adoptée",
+      "base_legale": "Article 25 loi 10 juillet 1965",
+      "mentions_obligatoires_presentes": true,
+      "niveau_confiance": "eleve",
+      "sections_incertaines": []
+    },
+    {
+      "numero": 4,
+      "titre": "Remplacement de la chaudiere collective",
+      "description": "Vote pour le remplacement de la chaudiere (1998) par une chaudiere a condensation pour 22 500 euros. Economie estimee : 18% sur les charges de chauffage.",
+      "locuteur_proposition": "Maitre Lefebvre",
+      "points_discussion": ["Chaudiere datant de 1998, signes de vieillissement"],
+      "timestamps": {"debut": null, "fin": null},
+      "votes": {"pour": 9, "contre": 7, "abstentions": 2, "non_participants": null, "unite": "voix"},
+      "majorite_requise": "article_25",
+      "majorite_atteinte": false,
+      "statut": "rejetée",
+      "base_legale": "Article 25 loi 10 juillet 1965",
+      "mentions_obligatoires_presentes": true,
+      "niveau_confiance": "eleve",
+      "sections_incertaines": []
+    }
+  ],
+  "decisions_finales": [
+    {"resolution": 1, "titre": "Approbation comptes 2023", "statut": "adoptée", "effet": "Comptes 2023 approuves — solde crediteur de 2150 euros"},
+    {"resolution": 2, "titre": "Budget 2024-2025", "statut": "adoptée", "effet": "Budget de 51 000 euros vote pour l exercice 2024-2025"},
+    {"resolution": 3, "titre": "Ravalement facade", "statut": "adoptée", "effet": "Travaux Facades Pro autorises pour 87 000 euros — appel de fonds 3625 euros/lot"},
+    {"resolution": 4, "titre": "Remplacement chaudiere", "statut": "rejetée", "effet": "Remplacement refuse — statu quo chaudiere 1998"}
+  ],
+  "points_divers": [
+    "Madame Petit signale un probleme d humidite dans les parties communes du sous-sol. Diagnostiqueur prevu dans les 30 jours.",
+    "Monsieur Bernard demande le changement du digicode porte principale. Accord general — syndic s en charge dans les 15 jours."
+  ],
+  "conformite_legale": {
+    "mentions_obligatoires_pv": {
+      "date_et_lieu": true,
+      "president_seance": true,
+      "liste_presents": true,
+      "quorum_constate": true,
+      "ordre_du_jour": true,
+      "resultats_votes": true
+    },
+    "alertes": ["Secretaire de seance non identifie dans la transcription"],
+    "recommandations": ["Identifier et mentionner le secretaire de seance dans le PV final"]
+  },
+  "observations_juridiques": "AG valide. Quorum atteint. Resolutions 1, 2, 3 adoptees aux majorites requises. Resolution 4 rejetee (art.25 non atteint : 9 voix pour sur 18 votants). Points divers traites.",
+  "diarization": [
+    {"timestamp": "18:30", "locuteur": "Maitre Lefebvre", "contenu_resume": "Ouverture de l AG, verification du quorum, presentation de l ordre du jour"},
+    {"timestamp": null, "locuteur": "Maitre Lefebvre", "contenu_resume": "Presentation et vote des 4 resolutions"},
+    {"timestamp": null, "locuteur": "Madame Petit", "contenu_resume": "Signalement d un probleme d humidite au sous-sol"},
+    {"timestamp": null, "locuteur": "Monsieur Bernard", "contenu_resume": "Demande de changement du digicode"},
+    {"timestamp": "20:10", "locuteur": "Maitre Lefebvre", "contenu_resume": "Cloture de la seance"}
+  ]
+}
