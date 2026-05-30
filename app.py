@@ -17,6 +17,7 @@ import historique_manager
 
 # Imports optionnels — disponibles en local uniquement
 try:
+    import faster_whisper  # test de la vraie dependance
     import transcriber
     TRANSCRIPTION_DISPONIBLE = True
 except ImportError:
