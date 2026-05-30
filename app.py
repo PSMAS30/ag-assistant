@@ -347,14 +347,19 @@ with tab2:
         if st.button("Analyser l AG", type="primary"):
             if mode == "🎭 Demo (sans cle API)" and st.session_state.demo_key:
                 d = demo_data.get_demo(st.session_state.demo_key)
+                # Priorite : cle saisie > cle .env locale > simulation
+                cle_effective = api_key or os.getenv("ANTHROPIC_API_KEY", "")
                 with st.spinner("Analyse en cours (mode demo)…"):
                     try:
+                        if not cle_effective:
+                            raise ValueError("Pas de cle API disponible")
                         st.session_state.analyse = analyzer.analyser_transcription(
                             st.session_state.transcription,
-                            api_key=api_key or "demo",
+                            api_key=cle_effective,
                         )
+                        st.success("Analyse terminee ✅")
                     except Exception:
-                        st.warning("Mode demo sans cle API — affichage d une analyse simulee.")
+                        st.warning("Aucune cle API disponible — affichage d une analyse simulee.")
                         st.session_state.analyse = _analyse_simulee(d)
             elif api_key:
                 with st.spinner("Analyse par Claude en cours…"):
