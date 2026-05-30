@@ -704,66 +704,60 @@ with tab5:
     if nb_total == 0:
         st.info("Aucune AG sauvegardee. Utilisez le bouton demo ci-dessus ou analysez une AG avec votre cle API.")
     else:
-        # ── Selecteur de dossier ──────────────────────────────────────────────
-        options_dossiers = ["📁 Tous les dossiers"] + [f"🏢 {d['entite']} ({d['nb_ag']} AG)" for d in dossiers]
-        choix_dossier = st.selectbox("Filtrer par entite", options_dossiers, index=0)
+        st.caption(f"{nb_total} AG — {len(dossiers)} dossier(s)")
 
-        dossier_filtre = None
-        if choix_dossier != "📁 Tous les dossiers":
-            idx = options_dossiers.index(choix_dossier) - 1
-            dossier_filtre = dossiers[idx]["dossier"]
+        # ── Vue groupee par dossier ───────────────────────────────────────────
+        for dossier in dossiers:
+            ag_du_dossier = historique_manager.lister_ag(dossier=dossier["dossier"])
+            type_label = ag_du_dossier[0]["type_ag"].replace("_", " ").upper() if ag_du_dossier else ""
 
-        ag_list = historique_manager.lister_ag(dossier=dossier_filtre)
-        nb = len(ag_list)
-        st.caption(f"{nb} AG — {len(dossiers)} dossier(s) au total")
-
-        for ag in ag_list:
-            # En-tete de chaque carte
-            date_sauv = ag["sauvegarde_le"][:10] if ag["sauvegarde_le"] else "?"
-            heure_sauv = ag["sauvegarde_le"][11:16] if len(ag["sauvegarde_le"]) > 16 else ""
-            type_label = ag["type_ag"].replace("_", " ").upper()
-            pv_badge = "📄 PV" if ag["a_pv"] else ""
-            dossier_badge = f"📁 {ag['dossier']}" if not dossier_filtre else ""
-
+            # Expander niveau 1 : le dossier (entite)
             with st.expander(
-                f"**{ag['entite']}** — {ag['date_ag'] or 'date inconnue'} | {type_label} | {ag['nb_resolutions']} resolution(s) {pv_badge} {dossier_badge}",
-                expanded=False,
+                f"📁 **{dossier['entite']}** — {dossier['nb_ag']} AG  |  {type_label}",
+                expanded=True,
             ):
-                col1, col2, col3 = st.columns([2, 2, 1])
-                col1.caption(f"Sauvegarde le {date_sauv} a {heure_sauv}")
-                col2.caption(f"Fichier : {ag['nom_fichier']}")
+                for ag in ag_du_dossier:
+                    pv_badge = " 📄" if ag["a_pv"] else ""
+                    date_ag = ag["date_ag"] or "date inconnue"
+                    date_sauv = ag["sauvegarde_le"][:10] if ag["sauvegarde_le"] else "?"
 
-                # Audit trail
-                audit = ag.get("audit_trail", [])
-                if len(audit) > 1:
-                    with st.expander(f"📋 Audit trail ({len(audit)} action(s))", expanded=False):
-                        for acte in audit:
-                            ts = acte.get("timestamp", "")[:16].replace("T", " ")
-                            action = acte.get("action", "").replace("_", " ")
-                            details = acte.get("details", "")
-                            st.write(f"• `{ts}` — **{action}** {': ' + details[:80] if details and len(details) < 80 else ''}")
+                    # Ligne AG (expander niveau 2)
+                    with st.expander(
+                        f"AG du {date_ag} — {ag['nb_resolutions']} resolution(s){pv_badge}",
+                        expanded=False,
+                    ):
+                        st.caption(f"Sauvegarde le {date_sauv}  |  Fichier : {ag['nom_fichier']}")
 
-                # Boutons action
-                btn1, btn2 = st.columns(2)
-                with btn1:
-                    if st.button("📂 Charger cette AG", key=f"load_{ag['nom_fichier']}"):
-                        try:
-                            entree = historique_manager.charger_ag(ag["fichier"])
-                            st.session_state.analyse = entree["analyse"]
-                            st.session_state.pv_texte = entree.get("pv_texte")
-                            st.session_state.transcription = entree["analyse"].get("transcription_brute", "")
-                            st.session_state.historique_fichier_actuel = ag["fichier"]
-                            st.success(f"AG de {ag['entite']} chargee ✅ — allez dans l onglet Analyse AG")
-                        except Exception as e:
-                            st.error(f"Erreur chargement : {e}")
+                        # Audit trail
+                        audit = ag.get("audit_trail", [])
+                        if len(audit) > 1:
+                            with st.expander(f"📋 Audit trail ({len(audit)} action(s))", expanded=False):
+                                for acte in audit:
+                                    ts = acte.get("timestamp", "")[:16].replace("T", " ")
+                                    action = acte.get("action", "").replace("_", " ")
+                                    details = acte.get("details", "")
+                                    st.write(f"• `{ts}` — **{action}**{': ' + details[:80] if details and len(details) < 80 else ''}")
 
-                with btn2:
-                    if st.button("🗑️ Supprimer", key=f"del_{ag['nom_fichier']}"):
-                        if historique_manager.supprimer_ag(ag["fichier"]):
-                            st.success("AG supprimee de l historique.")
-                            st.rerun()
-                        else:
-                            st.error("Impossible de supprimer.")
+                        # Boutons action
+                        btn1, btn2 = st.columns(2)
+                        with btn1:
+                            if st.button("📂 Charger cette AG", key=f"load_{ag['nom_fichier']}"):
+                                try:
+                                    entree = historique_manager.charger_ag(ag["fichier"])
+                                    st.session_state.analyse = entree["analyse"]
+                                    st.session_state.pv_texte = entree.get("pv_texte")
+                                    st.session_state.transcription = entree["analyse"].get("transcription_brute", "")
+                                    st.session_state.historique_fichier_actuel = ag["fichier"]
+                                    st.success(f"AG du {date_ag} chargee ✅ — allez dans l onglet Analyse AG")
+                                except Exception as e:
+                                    st.error(f"Erreur chargement : {e}")
+                        with btn2:
+                            if st.button("🗑️ Supprimer", key=f"del_{ag['nom_fichier']}"):
+                                if historique_manager.supprimer_ag(ag["fichier"]):
+                                    st.success("AG supprimee.")
+                                    st.rerun()
+                                else:
+                                    st.error("Impossible de supprimer.")
 
     st.divider()
 
