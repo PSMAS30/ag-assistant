@@ -6,6 +6,7 @@ app.py — Interface Streamlit pour l Assistant AG
 import os
 import json
 import tempfile
+from datetime import datetime
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -14,6 +15,8 @@ import analyzer
 import pv_generator
 import word_generator
 import historique_manager
+import convocation_generator
+import presence_generator
 
 # Imports optionnels — disponibles en local uniquement
 try:
@@ -132,7 +135,10 @@ for key in ["transcription", "segments", "segments_diarises", "locuteurs", "mapp
         st.session_state[key] = None
 
 # ─── Onglets ───────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["🎙️ Transcription", "📋 Analyse AG", "📄 Proces-verbal", "💬 Questions", "🗂️ Historique"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    "🎙️ Transcription", "📋 Analyse AG", "📄 Proces-verbal",
+    "💬 Questions", "🗂️ Historique", "📬 Convocation", "👥 Presence"
+])
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ONGLET 1 — TRANSCRIPTION
@@ -150,11 +156,12 @@ with tab1:
             "pour traiter vos propres enregistrements."
         )
 
+    # Sur Streamlit Cloud, masquer l option audio (transcription non disponible)
+    options_source = ["🎭 Utiliser une AG de demo"] if not TRANSCRIPTION_DISPONIBLE else ["📁 Charger un fichier audio", "🎭 Utiliser une AG de demo"]
     source = st.radio(
         "Source",
-        ["📁 Charger un fichier audio", "🎭 Utiliser une AG de demo"],
+        options_source,
         horizontal=True,
-        index=1 if not TRANSCRIPTION_DISPONIBLE else 0,
     )
 
     if source == "🎭 Utiliser une AG de demo":
@@ -730,3 +737,228 @@ with tab5:
                             st.rerun()
                         else:
                             st.error("Impossible de supprimer.")
+
+    st.divider()
+
+    # ── Export / Import historique ────────────────────────────────────────────
+    st.subheader("💾 Sauvegarde de l historique")
+    col_exp, col_imp = st.columns(2)
+
+    with col_exp:
+        st.caption("Exporter pour sauvegarde ou transfert")
+        if st.button("📦 Exporter l historique (.zip)", use_container_width=True):
+            try:
+                zip_bytes = historique_manager.exporter_historique()
+                if zip_bytes:
+                    st.download_button(
+                        "📥 Telecharger le ZIP",
+                        data=zip_bytes,
+                        file_name=f"historique_ag_{datetime.now().strftime('%Y%m%d')}.zip",
+                        mime="application/zip",
+                    )
+                else:
+                    st.info("Historique vide — rien a exporter.")
+            except Exception as e:
+                st.error(f"Erreur export : {e}")
+
+    with col_imp:
+        st.caption("Restaurer un historique precedemment exporte")
+        zip_upload = st.file_uploader("Importer un ZIP d historique", type=["zip"], key="import_hist")
+        if zip_upload and st.button("📂 Importer", use_container_width=True):
+            try:
+                nb_import = historique_manager.importer_historique(zip_upload.read())
+                st.success(f"{nb_import} AG importee(s) ✅")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Erreur import : {e}")
+
+    st.divider()
+
+    # ── Comparaison N vs N-1 ──────────────────────────────────────────────────
+    st.subheader("📊 Comparaison N vs N-1")
+    ag_list_comp = historique_manager.lister_ag()
+
+    if len(ag_list_comp) < 2:
+        st.info("Au moins 2 AG sauvegardees sont necessaires pour effectuer une comparaison.")
+    else:
+        options = {f"{ag['entite']} — {ag['date_ag'] or ag['sauvegarde_le'][:10]}": ag["fichier"] for ag in ag_list_comp}
+        labels = list(options.keys())
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            label_ag1 = st.selectbox("AG N-1 (ancienne)", labels, index=min(1, len(labels)-1), key="comp_ag1")
+        with col_b:
+            label_ag2 = st.selectbox("AG N (recente)", labels, index=0, key="comp_ag2")
+
+        if st.button("Comparer ces deux AG", type="primary"):
+            if label_ag1 == label_ag2:
+                st.warning("Selectionnez deux AG differentes.")
+            else:
+                try:
+                    rapport = historique_manager.comparer_ag(options[label_ag1], options[label_ag2])
+
+                    # Entetes
+                    c1, c2 = st.columns(2)
+                    c1.markdown(f"**AG N-1** : {rapport['ag1']['entite']} — {rapport['ag1']['date']}")
+                    c2.markdown(f"**AG N** : {rapport['ag2']['entite']} — {rapport['ag2']['date']}")
+
+                    st.divider()
+
+                    # Quorum
+                    st.subheader("Quorum")
+                    q = rapport["quorum"]
+                    col1, col2, col3, col4 = st.columns(4)
+                    col1.metric("Quorum N-1", "✅" if q["ag1_atteint"] else "❌" if q["ag1_atteint"] is False else "—")
+                    col2.metric("Quorum N", "✅" if q["ag2_atteint"] else "❌" if q["ag2_atteint"] is False else "—")
+                    if q["ag1_calcule"] and q["ag2_calcule"]:
+                        delta = q["ag2_calcule"] - q["ag1_calcule"]
+                        col3.metric("Voix N-1", q["ag1_calcule"])
+                        col4.metric("Voix N", q["ag2_calcule"], delta=f"{delta:+d}")
+
+                    # Participants
+                    st.subheader("Participants")
+                    p = rapport["participants"]
+                    col1, col2 = st.columns(2)
+                    col1.metric("Votants N-1", p["ag1_votants"] or "—")
+                    col2.metric("Votants N", p["ag2_votants"] or "—")
+
+                    # Resolutions communes
+                    res_communes = rapport["resolutions_communes"]
+                    if res_communes:
+                        st.subheader(f"Resolutions communes ({len(res_communes)})")
+                        for r in res_communes:
+                            icone = "🔄" if r["statut_change"] else "➡️"
+                            with st.expander(f"{icone} {r['titre']}", expanded=r["statut_change"]):
+                                col1, col2 = st.columns(2)
+                                col1.markdown(f"**N-1** : {r['statut_ag1'] or '—'}")
+                                col2.markdown(f"**N** : {r['statut_ag2'] or '—'}")
+                                if r["statut_change"]:
+                                    st.warning("Statut change entre les deux AG")
+                                v1 = r["votes_ag1"]
+                                v2 = r["votes_ag2"]
+                                if any(v is not None for v in [v1.get("pour"), v2.get("pour")]):
+                                    c1, c2, c3 = st.columns(3)
+                                    c1.metric("Pour N-1 → N", f"{v1.get('pour', '?')} → {v2.get('pour', '?')}")
+                                    c2.metric("Contre N-1 → N", f"{v1.get('contre', '?')} → {v2.get('contre', '?')}")
+                                    c3.metric("Abstentions N-1 → N", f"{v1.get('abstentions', '?')} → {v2.get('abstentions', '?')}")
+
+                    # Nouvelles / disparues
+                    if rapport["nouvelles_resolutions"]:
+                        st.subheader("🆕 Nouvelles resolutions (AG N uniquement)")
+                        for t in rapport["nouvelles_resolutions"]:
+                            st.write(f"• {t}")
+
+                    if rapport["resolutions_disparues"]:
+                        st.subheader("🗑️ Resolutions absentes en N")
+                        for t in rapport["resolutions_disparues"]:
+                            st.write(f"• {t}")
+
+                except Exception as e:
+                    st.error(f"Erreur comparaison : {e}")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ONGLET 6 — CONVOCATION
+# ══════════════════════════════════════════════════════════════════════════════
+with tab6:
+    st.header("📬 Generateur de convocation")
+    st.caption("Genere une convocation conforme avec les mentions legales obligatoires selon le type d entite.")
+
+    if not st.session_state.analyse:
+        st.info("👈 Chargez ou analysez une AG d abord pour pre-remplir la convocation. Ou remplissez les champs manuellement.")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        date_conv_input = st.date_input("Date d envoi de la convocation", value=datetime.now())
+        date_ag_input = st.text_input("Date proposee de l AG prochaine", placeholder="ex: 15/06/2025")
+    with col2:
+        lieu_input = st.text_input(
+            "Lieu de l AG",
+            value=st.session_state.analyse.get("informations_generales", {}).get("lieu", "") if st.session_state.analyse else "",
+            placeholder="Adresse ou salle"
+        )
+
+    if st.button("Generer la convocation", type="primary"):
+        analyse_conv = st.session_state.analyse or {}
+        date_conv_str = date_conv_input.strftime("%d/%m/%Y") if date_conv_input else None
+
+        col_pdf, col_word = st.columns(2)
+        with col_pdf:
+            tmp_path = None
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                    tmp_path = tmp.name
+                convocation_generator.generer_convocation_pdf(analyse_conv, tmp_path, date_conv_str, date_ag_input or None, lieu_input or None)
+                with open(tmp_path, "rb") as f:
+                    st.download_button("📥 Convocation PDF", data=f.read(), file_name="convocation_ag.pdf", mime="application/pdf", use_container_width=True)
+            except Exception as e:
+                st.error(f"Erreur PDF : {e}")
+            finally:
+                if tmp_path and os.path.exists(tmp_path):
+                    try: os.unlink(tmp_path)
+                    except OSError: pass
+
+        with col_word:
+            tmp_path = None
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+                    tmp_path = tmp.name
+                convocation_generator.generer_convocation_word(analyse_conv, tmp_path, date_conv_str, date_ag_input or None, lieu_input or None)
+                with open(tmp_path, "rb") as f:
+                    st.download_button("📥 Convocation Word", data=f.read(), file_name="convocation_ag.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
+            except Exception as e:
+                st.error(f"Erreur Word : {e}")
+            finally:
+                if tmp_path and os.path.exists(tmp_path):
+                    try: os.unlink(tmp_path)
+                    except OSError: pass
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ONGLET 7 — FEUILLE DE PRESENCE
+# ══════════════════════════════════════════════════════════════════════════════
+with tab7:
+    st.header("👥 Feuille de presence")
+    st.caption("Genere une feuille de presence pre-remplie depuis l analyse AG.")
+
+    if not st.session_state.analyse:
+        st.info("👈 Analysez une AG d abord pour pre-remplir la feuille de presence.")
+    else:
+        analyse_fp = st.session_state.analyse
+        infos_fp = analyse_fp.get("informations_generales", {})
+        p_fp = analyse_fp.get("participants", {})
+
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Presents", p_fp.get("total_presents", "—"))
+        col2.metric("Representes", p_fp.get("total_representes", "—"))
+        col3.metric("Total votants", p_fp.get("total_votants", "—"))
+
+        if st.button("Generer la feuille de presence", type="primary"):
+            col_pdf, col_word = st.columns(2)
+            with col_pdf:
+                tmp_path = None
+                try:
+                    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                        tmp_path = tmp.name
+                    presence_generator.generer_feuille_presence_pdf(analyse_fp, tmp_path)
+                    with open(tmp_path, "rb") as f:
+                        st.download_button("📥 Presence PDF", data=f.read(), file_name="feuille_presence_ag.pdf", mime="application/pdf", use_container_width=True)
+                except Exception as e:
+                    st.error(f"Erreur PDF : {e}")
+                finally:
+                    if tmp_path and os.path.exists(tmp_path):
+                        try: os.unlink(tmp_path)
+                        except OSError: pass
+
+            with col_word:
+                tmp_path = None
+                try:
+                    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+                        tmp_path = tmp.name
+                    presence_generator.generer_feuille_presence_word(analyse_fp, tmp_path)
+                    with open(tmp_path, "rb") as f:
+                        st.download_button("📥 Presence Word", data=f.read(), file_name="feuille_presence_ag.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
+                except Exception as e:
+                    st.error(f"Erreur Word : {e}")
+                finally:
+                    if tmp_path and os.path.exists(tmp_path):
+                        try: os.unlink(tmp_path)
+                        except OSError: pass

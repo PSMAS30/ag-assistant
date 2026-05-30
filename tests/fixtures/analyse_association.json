@@ -19,10 +19,19 @@
   },
   "participants": {
     "presents": [
-      {"nom": "43 membres presents", "qualite": "membre", "voix_ou_parts": 43, "observations": ""}
+      {
+        "nom": "43 membres presents",
+        "qualite": "membre",
+        "voix_ou_parts": 43,
+        "observations": ""
+      }
     ],
     "representes": [
-      {"mandant": "8 membres", "mandataire": "procurations", "voix_ou_parts": 8}
+      {
+        "mandant": "8 membres",
+        "mandataire": "procurations",
+        "voix_ou_parts": 8
+      }
     ],
     "absents_excuses": [],
     "total_presents": 43,
@@ -36,8 +45,16 @@
     "observations_quorum": "51 membres sur 87 inscrits — quorum atteint (44 voix requises)"
   },
   "ordre_du_jour": [
-    {"numero": 1, "intitule": "Modification des statuts — cotisation annuelle", "traite": true},
-    {"numero": 2, "intitule": "Acquisition d equipements sportifs", "traite": true}
+    {
+      "numero": 1,
+      "intitule": "Modification des statuts — cotisation annuelle",
+      "traite": true
+    },
+    {
+      "numero": 2,
+      "intitule": "Acquisition d equipements sportifs",
+      "traite": true
+    }
   ],
   "resolutions": [
     {
@@ -45,9 +62,20 @@
       "titre": "Modification article 12 — cotisations",
       "description": "Modification de l article 12 des statuts portant les cotisations adultes de 80 a 110 euros et enfants de 50 a 65 euros, avec tarif reduit a 80 euros sur demande. Effet au 1er janvier 2025.",
       "locuteur_proposition": "Sophie Marchand",
-      "points_discussion": ["Karim Diallo interroge sur un tarif solidaire — tarif reduit 80 euros sur demande cree"],
-      "timestamps": {"debut": null, "fin": null},
-      "votes": {"pour": 44, "contre": 5, "abstentions": 2, "non_participants": null, "unite": "voix"},
+      "points_discussion": [
+        "Karim Diallo interroge sur un tarif solidaire — tarif reduit 80 euros sur demande cree"
+      ],
+      "timestamps": {
+        "debut": null,
+        "fin": null
+      },
+      "votes": {
+        "pour": 44,
+        "contre": 5,
+        "abstentions": 2,
+        "non_participants": null,
+        "unite": "voix"
+      },
       "majorite_requise": "deux_tiers",
       "majorite_atteinte": true,
       "statut": "adoptée",
@@ -62,8 +90,17 @@
       "description": "Achat de 2 buts de football homologues et renouvellement des dossards pour 3 200 euros. Financement : 50% subvention municipale (1 600 euros) + 50% reserves association.",
       "locuteur_proposition": "Bureau de l association",
       "points_discussion": [],
-      "timestamps": {"debut": null, "fin": null},
-      "votes": {"pour": 49, "contre": 0, "abstentions": 2, "non_participants": null, "unite": "voix"},
+      "timestamps": {
+        "debut": null,
+        "fin": null
+      },
+      "votes": {
+        "pour": 49,
+        "contre": 0,
+        "abstentions": 2,
+        "non_participants": null,
+        "unite": "voix"
+      },
       "majorite_requise": "simple",
       "majorite_atteinte": true,
       "statut": "adoptée",
@@ -74,10 +111,22 @@
     }
   ],
   "decisions_finales": [
-    {"resolution": 1, "titre": "Modification cotisations", "statut": "adoptée", "effet": "Nouveaux tarifs en vigueur au 1er janvier 2025"},
-    {"resolution": 2, "titre": "Equipements sportifs", "statut": "adoptée", "effet": "Achat autorise pour 3200 euros — financement mixte subvention+reserves"}
+    {
+      "resolution": 1,
+      "titre": "Modification cotisations",
+      "statut": "adoptée",
+      "effet": "Nouveaux tarifs en vigueur au 1er janvier 2025"
+    },
+    {
+      "resolution": 2,
+      "titre": "Equipements sportifs",
+      "statut": "adoptée",
+      "effet": "Achat autorise pour 3200 euros — financement mixte subvention+reserves"
+    }
   ],
-  "points_divers": ["Prochaine AG ordinaire prevue en mars 2025"],
+  "points_divers": [
+    "Prochaine AG ordinaire prevue en mars 2025"
+  ],
   "conformite_legale": {
     "mentions_obligatoires_pv": {
       "date_et_lieu": true,
@@ -87,15 +136,49 @@
       "ordre_du_jour": true,
       "resultats_votes": true
     },
-    "alertes": ["Secretaire de seance non identifie", "Scrutateurs non mentionnes"],
-    "recommandations": ["Identifier secretaire et scrutateurs pour le PV final", "Faire signer le PV par president et secretaire"]
+    "alertes": [
+      "Secretaire de seance non identifie",
+      "Scrutateurs non mentionnes"
+    ],
+    "recommandations": [
+      "Identifier secretaire et scrutateurs pour le PV final",
+      "Faire signer le PV par president et secretaire"
+    ]
   },
   "observations_juridiques": "AGE valide. Quorum atteint. Resolution 1 adoptee a la majorite des 2/3 (requis pour modification statuts). Resolution 2 adoptee a l unanimite. PV doit etre signe par president et secretaire.",
   "diarization": [
-    {"timestamp": "19:00", "locuteur": "Sophie Marchand", "contenu_resume": "Ouverture de l AGE, verification du quorum"},
-    {"timestamp": null, "locuteur": "Sophie Marchand", "contenu_resume": "Presentation modification cotisations"},
-    {"timestamp": null, "locuteur": "Karim Diallo", "contenu_resume": "Question sur tarif solidaire"},
-    {"timestamp": null, "locuteur": "Sophie Marchand", "contenu_resume": "Annonce tarif reduit 80 euros sur demande"},
-    {"timestamp": "20:25", "locuteur": "Sophie Marchand", "contenu_resume": "Cloture, annonce prochaine AG mars 2025"}
-  ]
+    {
+      "timestamp": "19:00",
+      "locuteur": "Sophie Marchand",
+      "contenu_resume": "Ouverture de l AGE, verification du quorum"
+    },
+    {
+      "timestamp": null,
+      "locuteur": "Sophie Marchand",
+      "contenu_resume": "Presentation modification cotisations"
+    },
+    {
+      "timestamp": null,
+      "locuteur": "Karim Diallo",
+      "contenu_resume": "Question sur tarif solidaire"
+    },
+    {
+      "timestamp": null,
+      "locuteur": "Sophie Marchand",
+      "contenu_resume": "Annonce tarif reduit 80 euros sur demande"
+    },
+    {
+      "timestamp": "20:25",
+      "locuteur": "Sophie Marchand",
+      "contenu_resume": "Cloture, annonce prochaine AG mars 2025"
+    }
+  ],
+  "niveaux_confiance_sections": {
+    "participants": 95,
+    "votes": 91,
+    "quorum": 78,
+    "convocation": 60,
+    "ordre_du_jour": 98,
+    "methode": "Score 0-100 base sur la clarte des informations dans la transcription"
+  }
 }

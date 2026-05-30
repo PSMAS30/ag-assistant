@@ -19,11 +19,36 @@
   },
   "participants": {
     "presents": [
-      {"nom": "Alexandre Fontaine", "qualite": "associe", "voix_ou_parts": 600, "observations": "President"},
-      {"nom": "Nadia Benchikh", "qualite": "associe", "voix_ou_parts": 300, "observations": ""},
-      {"nom": "Thomas Roux", "qualite": "associe", "voix_ou_parts": 250, "observations": "Directeur financier"},
-      {"nom": "Claire Vidal", "qualite": "associe", "voix_ou_parts": 200, "observations": ""},
-      {"nom": "Marc Lejeune", "qualite": "associe", "voix_ou_parts": 150, "observations": ""}
+      {
+        "nom": "Alexandre Fontaine",
+        "qualite": "associe",
+        "voix_ou_parts": 600,
+        "observations": "President"
+      },
+      {
+        "nom": "Nadia Benchikh",
+        "qualite": "associe",
+        "voix_ou_parts": 300,
+        "observations": ""
+      },
+      {
+        "nom": "Thomas Roux",
+        "qualite": "associe",
+        "voix_ou_parts": 250,
+        "observations": "Directeur financier"
+      },
+      {
+        "nom": "Claire Vidal",
+        "qualite": "associe",
+        "voix_ou_parts": 200,
+        "observations": ""
+      },
+      {
+        "nom": "Marc Lejeune",
+        "qualite": "associe",
+        "voix_ou_parts": 150,
+        "observations": ""
+      }
     ],
     "representes": [],
     "absents_excuses": [],
@@ -38,10 +63,26 @@
     "observations_quorum": "100% des parts representees — tous les associes presents"
   },
   "ordre_du_jour": [
-    {"numero": 1, "intitule": "Approbation des comptes annuels 2023", "traite": true},
-    {"numero": 2, "intitule": "Affectation du resultat", "traite": true},
-    {"numero": 3, "intitule": "Renouvellement du mandat du commissaire aux comptes", "traite": true},
-    {"numero": 4, "intitule": "Autorisation d emprunt bancaire", "traite": true}
+    {
+      "numero": 1,
+      "intitule": "Approbation des comptes annuels 2023",
+      "traite": true
+    },
+    {
+      "numero": 2,
+      "intitule": "Affectation du resultat",
+      "traite": true
+    },
+    {
+      "numero": 3,
+      "intitule": "Renouvellement du mandat du commissaire aux comptes",
+      "traite": true
+    },
+    {
+      "numero": 4,
+      "intitule": "Autorisation d emprunt bancaire",
+      "traite": true
+    }
   ],
   "resolutions": [
     {
@@ -49,9 +90,20 @@
       "titre": "Approbation comptes annuels 2023",
       "description": "Approbation des comptes annuels de l exercice 2023. CA : 2,3 M euros (+18%). Resultat net : 142 000 euros. Capitaux propres : 380 000 euros.",
       "locuteur_proposition": "Thomas Roux",
-      "points_discussion": ["Progression de 18% du CA par rapport a 2022"],
-      "timestamps": {"debut": "14:00", "fin": null},
-      "votes": {"pour": 1500, "contre": 0, "abstentions": 0, "non_participants": null, "unite": "parts"},
+      "points_discussion": [
+        "Progression de 18% du CA par rapport a 2022"
+      ],
+      "timestamps": {
+        "debut": "14:00",
+        "fin": null
+      },
+      "votes": {
+        "pour": 1500,
+        "contre": 0,
+        "abstentions": 0,
+        "non_participants": null,
+        "unite": "parts"
+      },
       "majorite_requise": "selon_statuts",
       "majorite_atteinte": true,
       "statut": "adoptée",
@@ -66,8 +118,17 @@
       "description": "Affectation du resultat net 142 000 euros : 14 200 euros en reserve legale, 50 000 euros en reserves facultatives, 77 800 euros en dividendes au prorata des parts.",
       "locuteur_proposition": "Alexandre Fontaine",
       "points_discussion": [],
-      "timestamps": {"debut": null, "fin": null},
-      "votes": {"pour": 1500, "contre": 0, "abstentions": 0, "non_participants": null, "unite": "parts"},
+      "timestamps": {
+        "debut": null,
+        "fin": null
+      },
+      "votes": {
+        "pour": 1500,
+        "contre": 0,
+        "abstentions": 0,
+        "non_participants": null,
+        "unite": "parts"
+      },
       "majorite_requise": "selon_statuts",
       "majorite_atteinte": true,
       "statut": "adoptée",
@@ -81,9 +142,20 @@
       "titre": "Renouvellement mandat commissaire aux comptes",
       "description": "Renouvellement du mandat du cabinet Ernst et Martin pour 6 exercices.",
       "locuteur_proposition": "Alexandre Fontaine",
-      "points_discussion": ["Marc Lejeune vote contre"],
-      "timestamps": {"debut": null, "fin": null},
-      "votes": {"pour": 1350, "contre": 150, "abstentions": 0, "non_participants": null, "unite": "parts"},
+      "points_discussion": [
+        "Marc Lejeune vote contre"
+      ],
+      "timestamps": {
+        "debut": null,
+        "fin": null
+      },
+      "votes": {
+        "pour": 1350,
+        "contre": 150,
+        "abstentions": 0,
+        "non_participants": null,
+        "unite": "parts"
+      },
       "majorite_requise": "selon_statuts",
       "majorite_atteinte": true,
       "statut": "adoptée",
@@ -98,8 +170,17 @@
       "description": "Autorisation d emprunt aupres du Credit Industriel de Lyon de 200 000 euros maximum sur 5 ans pour financer l acquisition de nouveaux equipements de production.",
       "locuteur_proposition": "Alexandre Fontaine",
       "points_discussion": [],
-      "timestamps": {"debut": null, "fin": "16:15"},
-      "votes": {"pour": 1500, "contre": 0, "abstentions": 0, "non_participants": null, "unite": "parts"},
+      "timestamps": {
+        "debut": null,
+        "fin": "16:15"
+      },
+      "votes": {
+        "pour": 1500,
+        "contre": 0,
+        "abstentions": 0,
+        "non_participants": null,
+        "unite": "parts"
+      },
       "majorite_requise": "selon_statuts",
       "majorite_atteinte": true,
       "statut": "adoptée",
@@ -110,10 +191,30 @@
     }
   ],
   "decisions_finales": [
-    {"resolution": 1, "titre": "Comptes 2023", "statut": "adoptée", "effet": "Comptes 2023 approuves a l unanimite"},
-    {"resolution": 2, "titre": "Affectation resultat", "statut": "adoptée", "effet": "Dividendes de 77 800 euros distribues — reserves dotees"},
-    {"resolution": 3, "titre": "CAC Ernst et Martin", "statut": "adoptée", "effet": "Mandat renouvele pour 6 exercices"},
-    {"resolution": 4, "titre": "Emprunt 200 000 euros", "statut": "adoptée", "effet": "Emprunt autorise aupres du Credit Industriel de Lyon"}
+    {
+      "resolution": 1,
+      "titre": "Comptes 2023",
+      "statut": "adoptée",
+      "effet": "Comptes 2023 approuves a l unanimite"
+    },
+    {
+      "resolution": 2,
+      "titre": "Affectation resultat",
+      "statut": "adoptée",
+      "effet": "Dividendes de 77 800 euros distribues — reserves dotees"
+    },
+    {
+      "resolution": 3,
+      "titre": "CAC Ernst et Martin",
+      "statut": "adoptée",
+      "effet": "Mandat renouvele pour 6 exercices"
+    },
+    {
+      "resolution": 4,
+      "titre": "Emprunt 200 000 euros",
+      "statut": "adoptée",
+      "effet": "Emprunt autorise aupres du Credit Industriel de Lyon"
+    }
   ],
   "points_divers": [],
   "conformite_legale": {
@@ -125,14 +226,42 @@
       "ordre_du_jour": true,
       "resultats_votes": true
     },
-    "alertes": ["Secretaire de seance non mentionne"],
-    "recommandations": ["Faire signer le PV par le president de seance Alexandre Fontaine"]
+    "alertes": [
+      "Secretaire de seance non mentionne"
+    ],
+    "recommandations": [
+      "Faire signer le PV par le president de seance Alexandre Fontaine"
+    ]
   },
   "observations_juridiques": "AGO valide. Totalite du capital representee. 4 resolutions adoptees dont 3 a l unanimite. Renouvellement CAC conforme. Autorisation emprunt accordee.",
   "diarization": [
-    {"timestamp": "14:00", "locuteur": "Alexandre Fontaine", "contenu_resume": "Ouverture de l AGO, constat quorum"},
-    {"timestamp": null, "locuteur": "Thomas Roux", "contenu_resume": "Presentation des comptes annuels 2023"},
-    {"timestamp": null, "locuteur": "Alexandre Fontaine", "contenu_resume": "Presentation affectation resultat et vote resolutions 2 a 4"},
-    {"timestamp": "16:15", "locuteur": "Alexandre Fontaine", "contenu_resume": "Cloture de la seance"}
-  ]
+    {
+      "timestamp": "14:00",
+      "locuteur": "Alexandre Fontaine",
+      "contenu_resume": "Ouverture de l AGO, constat quorum"
+    },
+    {
+      "timestamp": null,
+      "locuteur": "Thomas Roux",
+      "contenu_resume": "Presentation des comptes annuels 2023"
+    },
+    {
+      "timestamp": null,
+      "locuteur": "Alexandre Fontaine",
+      "contenu_resume": "Presentation affectation resultat et vote resolutions 2 a 4"
+    },
+    {
+      "timestamp": "16:15",
+      "locuteur": "Alexandre Fontaine",
+      "contenu_resume": "Cloture de la seance"
+    }
+  ],
+  "niveaux_confiance_sections": {
+    "participants": 95,
+    "votes": 91,
+    "quorum": 78,
+    "convocation": 60,
+    "ordre_du_jour": 98,
+    "methode": "Score 0-100 base sur la clarte des informations dans la transcription"
+  }
 }
