@@ -310,26 +310,8 @@ def importer_historique(zip_bytes: bytes) -> int:
 
 # ── Comparaison N vs N-1 ──────────────────────────────────────────────────────
 
-def comparer_ag(chemin_ag1: str, chemin_ag2: str) -> dict:
-    """
-    Compare deux AG et retourne un rapport de differences.
-
-    Args:
-        chemin_ag1: Fichier AG N-1 (plus ancienne)
-        chemin_ag2: Fichier AG N (plus recente)
-
-    Returns:
-        dict: Rapport de comparaison
-    """
-    entree1 = charger_ag(chemin_ag1)
-    entree2 = charger_ag(chemin_ag2)
-    a1 = entree1.get("analyse", {})
-    a2 = entree2.get("analyse", {})
-    meta1 = entree1.get("meta_historique", {})
-    meta2 = entree2.get("meta_historique", {})
-
-    p1 = a1.get("participants", {})
-    p2 = a2.get("participants", {})
+def _construire_rapport(a1: dict, a2: dict, meta1: dict, meta2: dict) -> dict:
+    """Logique commune de comparaison entre deux analyses (dicts)."""
 
     def _voix(p):
         v = p.get("total_voix") or p.get("total_votants")
@@ -341,6 +323,9 @@ def comparer_ag(chemin_ag1: str, chemin_ag2: str) -> dict:
 
     def _normaliser(titre: str) -> str:
         return titre.lower().strip() if titre else ""
+
+    p1 = a1.get("participants", {})
+    p2 = a2.get("participants", {})
 
     res1 = {_normaliser(r.get("titre", r.get("intitule", ""))): r for r in a1.get("resolutions", [])}
     res2 = {_normaliser(r.get("titre", r.get("intitule", ""))): r for r in a2.get("resolutions", [])}
@@ -367,8 +352,8 @@ def comparer_ag(chemin_ag1: str, chemin_ag2: str) -> dict:
         })
 
     return {
-        "ag1": {"entite": meta1.get("entite"), "date": meta1.get("date_ag"), "dossier": meta1.get("dossier", ""), "sauvegarde_le": meta1.get("sauvegarde_le", "")[:10]},
-        "ag2": {"entite": meta2.get("entite"), "date": meta2.get("date_ag"), "dossier": meta2.get("dossier", ""), "sauvegarde_le": meta2.get("sauvegarde_le", "")[:10]},
+        "ag1": {"entite": meta1.get("entite"), "date": meta1.get("date_ag"), "dossier": meta1.get("dossier", ""), "sauvegarde_le": (meta1.get("sauvegarde_le", "") or "")[:10]},
+        "ag2": {"entite": meta2.get("entite"), "date": meta2.get("date_ag"), "dossier": meta2.get("dossier", ""), "sauvegarde_le": (meta2.get("sauvegarde_le", "") or "")[:10]},
         "quorum": {
             "ag1_atteint": p1.get("quorum_atteint"),
             "ag2_atteint": p2.get("quorum_atteint"),
@@ -387,3 +372,31 @@ def comparer_ag(chemin_ag1: str, chemin_ag2: str) -> dict:
         "nb_resolutions_ag1": len(res1),
         "nb_resolutions_ag2": len(res2),
     }
+
+
+def comparer_ag(chemin_ag1: str, chemin_ag2: str) -> dict:
+    """Compare deux AG depuis des fichiers disque."""
+    entree1 = charger_ag(chemin_ag1)
+    entree2 = charger_ag(chemin_ag2)
+    return _construire_rapport(
+        entree1.get("analyse", {}),
+        entree2.get("analyse", {}),
+        entree1.get("meta_historique", {}),
+        entree2.get("meta_historique", {}),
+    )
+
+
+def comparer_analyses_dict(analyse1: dict, analyse2: dict) -> dict:
+    """
+    Compare deux analyses (dicts) sans fichiers disque.
+    Utile pour la demo session (donnees ephemeres).
+    """
+    def _meta(analyse):
+        infos = analyse.get("informations_generales", {})
+        return {
+            "entite": infos.get("entite", analyse.get("entite", "")),
+            "date_ag": infos.get("date", ""),
+            "dossier": "",
+            "sauvegarde_le": "",
+        }
+    return _construire_rapport(analyse1, analyse2, _meta(analyse1), _meta(analyse2))

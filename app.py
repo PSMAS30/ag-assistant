@@ -857,12 +857,31 @@ with tab5:
 
     # ── Comparaison N vs N-1 ──────────────────────────────────────────────────
     st.subheader("📊 Comparaison N vs N-1")
-    ag_list_comp = historique_manager.lister_ag()
+
+    # Construire liste unifiee disque + session demo
+    ag_list_comp_disque = historique_manager.lister_ag()
+    ag_list_comp_session = [
+        {
+            "entite": e["analyse"].get("informations_generales", {}).get("entite", "Demo"),
+            "date_ag": e["analyse"].get("informations_generales", {}).get("date", ""),
+            "fichier": f"__session__{i}",
+            "_analyse": e["analyse"],
+        }
+        for i, e in enumerate(st.session_state.demo_historique_session)
+    ]
+    ag_list_comp = [
+        {**ag, "_source": "disque"} for ag in ag_list_comp_disque
+    ] + [
+        {**ag, "_source": "session"} for ag in ag_list_comp_session
+    ]
 
     if len(ag_list_comp) < 2:
-        st.info("Au moins 2 AG sauvegardees sont necessaires pour effectuer une comparaison.")
+        st.info("Au moins 2 AG sont necessaires pour effectuer une comparaison (historique disque ou demo session).")
     else:
-        options = {f"{ag['entite']} — {ag['date_ag'] or ag['sauvegarde_le'][:10]}": ag["fichier"] for ag in ag_list_comp}
+        options = {
+            f"{ag['entite']} — {ag['date_ag'] or ''} {'🎭' if ag['_source']=='session' else '💾'}": ag
+            for ag in ag_list_comp
+        }
         labels = list(options.keys())
 
         col_a, col_b = st.columns(2)
@@ -876,7 +895,20 @@ with tab5:
                 st.warning("Selectionnez deux AG differentes.")
             else:
                 try:
-                    rapport = historique_manager.comparer_ag(options[label_ag1], options[label_ag2])
+                    ag1_entry = options[label_ag1]
+                    ag2_entry = options[label_ag2]
+                    # Utiliser comparer_ag (disque) ou comparer_analyses_dict (session)
+                    if ag1_entry["_source"] == "disque" and ag2_entry["_source"] == "disque":
+                        rapport = historique_manager.comparer_ag(ag1_entry["fichier"], ag2_entry["fichier"])
+                    elif ag1_entry["_source"] == "session" and ag2_entry["_source"] == "session":
+                        rapport = historique_manager.comparer_analyses_dict(ag1_entry["_analyse"], ag2_entry["_analyse"])
+                    else:
+                        # Mix disque + session : charger l analyse disque
+                        def _get_analyse(entry):
+                            if entry["_source"] == "disque":
+                                return historique_manager.charger_ag(entry["fichier"])["analyse"]
+                            return entry["_analyse"]
+                        rapport = historique_manager.comparer_analyses_dict(_get_analyse(ag1_entry), _get_analyse(ag2_entry))
 
                     # Entetes
                     c1, c2 = st.columns(2)
