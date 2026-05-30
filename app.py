@@ -696,10 +696,26 @@ with tab5:
         st.caption("Charge 4 AG fictives : 2 x Copropriete Les Acacias (2023+2024), Association Elan Vitry, SAS Innov Tech.")
         st.caption("Permet de tester dossiers, comparaison N/N-1, exports sans cle API.")
         if st.button("📥 Charger les 4 AG demo", type="secondary", key="btn_demo_hist"):
+            # Construire un index des AG existantes (entite + date) pour eviter les doublons
+            ag_existantes = {
+                (ag["entite"], ag["date_ag"])
+                for ag in historique_manager.lister_ag()
+            }
+            nb_charge = 0
+            nb_ignore = 0
             for entree in historique_demo.DEMO_HISTORIQUE:
-                historique_manager.sauvegarder_ag(entree["analyse"], entree.get("pv_texte"))
-            st.success(f"{len(historique_demo.DEMO_HISTORIQUE)} AG demo chargees ✅")
-            st.rerun()
+                infos = entree["analyse"].get("informations_generales", {})
+                cle = (infos.get("entite", ""), infos.get("date", ""))
+                if cle in ag_existantes:
+                    nb_ignore += 1
+                else:
+                    historique_manager.sauvegarder_ag(entree["analyse"], entree.get("pv_texte"))
+                    nb_charge += 1
+            if nb_charge > 0:
+                st.success(f"{nb_charge} AG demo chargees ✅" + (f" ({nb_ignore} deja presentes, ignorees)" if nb_ignore else ""))
+                st.rerun()
+            else:
+                st.info("Toutes les AG demo sont deja presentes dans l historique.")
 
     if nb_total == 0:
         st.info("Aucune AG sauvegardee. Utilisez le bouton demo ci-dessus ou analysez une AG avec votre cle API.")
