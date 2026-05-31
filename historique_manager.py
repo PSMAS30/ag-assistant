@@ -147,19 +147,27 @@ def lister_dossiers() -> list:
     Returns:
         list: [{"dossier": str, "nb_ag": int, "entite": str}]
     """
-    _assurer_dossier()
-    _migrer_fichiers_plats()
-    dossiers = []
-    for d in sorted(HISTORIQUE_DIR.iterdir()):
-        if d.is_dir():
-            nb = len(list(d.glob("*.json")))
-            if nb > 0:
-                dossiers.append({
-                    "dossier": d.name,
-                    "entite": d.name.replace("_", " "),
-                    "nb_ag": nb,
-                })
-    return dossiers
+    try:
+        _assurer_dossier()
+        _migrer_fichiers_plats()
+        if not HISTORIQUE_DIR.exists():
+            return []
+        dossiers = []
+        for d in sorted(HISTORIQUE_DIR.iterdir()):
+            try:
+                if d.is_dir():
+                    nb = len(list(d.glob("*.json")))
+                    if nb > 0:
+                        dossiers.append({
+                            "dossier": d.name,
+                            "entite": d.name.replace("_", " "),
+                            "nb_ag": nb,
+                        })
+            except Exception:
+                continue
+        return dossiers
+    except Exception:
+        return []
 
 
 def lister_ag(dossier: str = None) -> list:
@@ -173,8 +181,14 @@ def lister_ag(dossier: str = None) -> list:
         list: [{fichier, nom_fichier, dossier, entite, type_ag, date_ag,
                 nb_resolutions, a_pv, sauvegarde_le, audit_trail}]
     """
-    _assurer_dossier()
-    _migrer_fichiers_plats()
+    try:
+        _assurer_dossier()
+        _migrer_fichiers_plats()
+    except Exception:
+        pass
+
+    if not HISTORIQUE_DIR.exists():
+        return []
 
     if dossier:
         pattern = f"{dossier}/*.json"
@@ -233,10 +247,16 @@ def supprimer_ag(chemin_fichier: str) -> bool:
 
 def nb_ag_sauvegardees(dossier: str = None) -> int:
     """Retourne le nombre d AG dans l historique (total ou par dossier)."""
-    _assurer_dossier()
-    if dossier:
-        return len(list((HISTORIQUE_DIR / dossier).glob("*.json")))
-    return len(list(HISTORIQUE_DIR.glob("**/*.json")))
+    try:
+        _assurer_dossier()
+        if not HISTORIQUE_DIR.exists():
+            return 0
+        if dossier:
+            sous_dir = HISTORIQUE_DIR / dossier
+            return len(list(sous_dir.glob("*.json"))) if sous_dir.exists() else 0
+        return len(list(HISTORIQUE_DIR.glob("**/*.json")))
+    except Exception:
+        return 0
 
 
 # ── Export / Import historique ────────────────────────────────────────────────
