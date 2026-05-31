@@ -120,6 +120,14 @@ def _dashboard():
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("➕ Nouvelle AG", type="primary", use_container_width=True):
             _nav("nouvelle_ag")
+
+    # ── Bandeau demo guidee ──────────────────────────────────────────────────
+    st.info(
+        "🎭 **Découvrez le workflow complet** — Parcourez les 7 étapes avec une AG fictive pré-remplie, sans clé API ni fichier audio.   "
+        "  ​"
+    )
+    if st.button("▶️ Lancer la démo guidée (Copropriété Les Acacias — 7 étapes)", type="secondary", use_container_width=True, key="btn_demo_guidee"):
+        _lancer_demo_guidee()
     st.divider()
 
     demo_session = st.session_state.demo_historique_session
@@ -128,11 +136,7 @@ def _dashboard():
 
     # ── Aucune donnee ────────────────────────────────────────────────────────
     if not demo_session and nb_disk == 0:
-        st.info("Aucune assemblée générale. Cliquez sur **➕ Nouvelle AG** pour commencer, ou chargez des données de démonstration.")
-        with st.expander("🎭 Données de démonstration"):
-            st.caption("4 AG fictives : Copropriété Les Acacias 2023+2024, Association Élan Vitry, SAS Innov Tech")
-            if st.button("📥 Charger les 4 AG demo", key="btn_demo_empty"):
-                _charger_demo()
+        st.info("Aucune assemblée générale enregistrée. Cliquez sur **➕ Nouvelle AG** pour commencer.")
         return
 
     # ── Section demo session ─────────────────────────────────────────────────
@@ -204,6 +208,47 @@ def _charger_demo():
     if nb: st.success(f"{nb} AG demo chargées ✅"); st.rerun()
     else: st.info("Données demo déjà présentes.")
 
+
+def _lancer_demo_guidee():
+    """
+    Lance la demo guidee : charge la Copropriete Les Acacias 2024
+    avec toutes les donnees pre-remplies (transcription + analyse + PV demo)
+    et demarre au workflow etape 1.
+    """
+    # Analyse pre-remplie depuis historique_demo
+    analyse = historique_demo.AG_ACACIAS_2024
+
+    # Transcription pre-remplie depuis demo_data
+    transcription = demo_data.get_demo("copropriete")["transcription"].strip()
+
+    # PV genere en mode demo (sans API)
+    pv_texte = pv_generator.pv_demo(analyse)
+
+    # Metadonnees
+    meta = {
+        "entite": "Copropriété Les Acacias",
+        "dossier": "Copropriete_Les_Acacias",
+        "type_ag": "copropriete",
+        "date_ag": "15/06/2024",
+        "lieu": "Salle communale, 12 rue des Lilas, 75012 Paris",
+        "is_demo_session": True,
+        "is_demo_guidee": True,
+        "sauvegarde_le": "",
+        "nb_resolutions": len(analyse.get("resolutions", [])),
+        "a_pv": True,
+        "audit_trail": [],
+    }
+
+    st.session_state.ag_active = {"meta_historique": meta, "analyse": analyse, "pv_texte": pv_texte, "transcription": transcription}
+    st.session_state.analyse = analyse
+    st.session_state.transcription = transcription
+    st.session_state.pv_texte = pv_texte
+    st.session_state.segments = None
+    st.session_state.historique_fichier_actuel = None
+    st.session_state.etape = 1          # ← commence a l etape 1
+    st.session_state.etapes_ok = []     # ← aucune etape marquee OK
+    _nav("workflow")
+
 # ══════════════════════════════════════════════════════════════════════════════
 # VUE 2 — NOUVELLE AG
 # ══════════════════════════════════════════════════════════════════════════════
@@ -272,15 +317,24 @@ def _workflow(mode, api_key, hf_token_ui):
     entite = meta.get("entite", "Assemblée Générale")
     date_ag = meta.get("date_ag", "")
     type_ag = meta.get("type_ag", "autre")
+    is_demo_guidee = meta.get("is_demo_guidee", False)
     etape = st.session_state.etape
     etapes_ok = st.session_state.etapes_ok
+
+    # Banniere demo guidee
+    if is_demo_guidee:
+        st.success(
+            "🎭 **Mode démo guidée** — Toutes les données sont pré-remplies. "
+            "Naviguez librement les 7 étapes : convocation, présence, transcription, analyse, PV, signature, archivage. "
+            "Aucune clé API requise."
+        )
 
     cb, ct, _ = st.columns([1, 5, 1])
     with cb:
         if st.button("← Retour", key="back_wf"): _nav("dashboard")
     with ct:
         st.markdown(f"## 🏛️ {entite}")
-        st.caption(f"{TYPES_AG.get(type_ag, type_ag)}  ·  {date_ag or 'date non définie'}")
+        st.caption(f"{TYPES_AG.get(type_ag, type_ag)}  ·  {date_ag or 'date non définie'}{'  ·  🎭 Demo' if is_demo_guidee else ''}")
 
     _step_bar(etape, etapes_ok)
 
@@ -372,6 +426,14 @@ def _s2_presence(ag, meta, etape, etapes_ok):
 def _s3_reunion(ag, meta, etape, etapes_ok, mode, api_key, hf_token_ui):
     st.subheader("🎙️ Étape 3 — Réunion")
     st.caption("Chargez l enregistrement audio ou utilisez une AG de démonstration.")
+
+    # Demo guidee : transcription deja pre-chargee
+    if meta.get("is_demo_guidee") and st.session_state.transcription:
+        st.success("✅ Transcription pré-chargée (demo Copropriété Les Acacias)")
+        st.text_area("Transcription", value=st.session_state.transcription, height=200, key="s3_txte_demo", disabled=True)
+        _nav_btns(etape, etapes_ok, "Analyser l AG →", can_next=True)
+        return
+
     if not TRANSCRIPTION_DISPONIBLE:
         st.warning("⚠️ **Transcription non disponible sur cette instance.** Utilisez le mode demo ou installez l app en local.")
     opts = ["📁 Fichier audio", "🎭 AG de demo"] if TRANSCRIPTION_DISPONIBLE else ["🎭 AG de demo"]
