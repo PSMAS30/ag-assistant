@@ -1,12 +1,13 @@
 """
-app.py — Interface Streamlit pour l Assistant AG
-5 onglets : Transcription · Analyse · PV · Questions · Historique
+app.py — Assistant AG | Interface professionnelle de gestion d assemblees generales
+Architecture : Dashboard "Mes AG" + Workflow 7 etapes par AG
 """
 
 import os
 import json
 import tempfile
 from datetime import datetime
+from collections import defaultdict
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -19,9 +20,8 @@ import historique_demo
 import convocation_generator
 import presence_generator
 
-# Imports optionnels — disponibles en local uniquement
 try:
-    import faster_whisper  # test de la vraie dependance
+    import faster_whisper
     import transcriber
     TRANSCRIPTION_DISPONIBLE = True
 except ImportError:
@@ -29,1049 +29,622 @@ except ImportError:
 
 load_dotenv()
 
-# ─── Fonction utilitaire mode demo ─────────────────────────────────────────────
-def _analyse_simulee(demo: dict) -> dict:
-    """Retourne une analyse minimale simulee pour le mode demo strict (sans API)."""
-    meta = demo.get("metadata", {})
-    nb_presents = meta.get("nb_presents", 0) or 0
-    nb_representes = meta.get("nb_representes", 0) or 0
-    return {
-        "meta": {
-            "version": "2.0",
-            "genere_par": "AG Assistant — mode demo",
-            "niveau_confiance_global": "demo",
-            "avertissement": "Donnees de demonstration uniquement.",
-        },
-        "type_ag": meta.get("type", "autre"),
-        "informations_generales": {
-            "entite": meta.get("nom", "Entite demo"),
-            "date": meta.get("date", "non mentionne dans la transcription"),
-            "lieu": meta.get("lieu", "non mentionne dans la transcription"),
-            "type_assemblee": "AG ordinaire annuelle",
-            "heure_ouverture": "non mentionne dans la transcription",
-            "heure_cloture": "non mentionne dans la transcription",
-            "president_seance": meta.get("president", meta.get("syndic", "non mentionne dans la transcription")),
-            "secretaire": "non mentionne dans la transcription",
-            "scrutateurs": [],
-        },
-        "participants": {
-            "presents": [{"nom": f"{nb_presents} membres presents", "qualite": "membre", "voix_ou_parts": None, "observations": ""}],
-            "representes": [],
-            "absents_excuses": [],
-            "total_presents": nb_presents,
-            "total_representes": nb_representes,
-            "total_votants": nb_presents + nb_representes,
-            "total_voix": nb_presents + nb_representes,
-            "quorum_requis": "Selon statuts",
-            "quorum_calcule": None,
-            "quorum_atteint": True,
-            "base_legale_quorum": "non mentionne dans la transcription",
-            "observations_quorum": "Donnees de demonstration",
-        },
-        "ordre_du_jour": [],
-        "resolutions": [],
-        "decisions_finales": [],
-        "points_divers": ["[Analyse simulee — mode demo sans cle API]"],
-        "conformite_legale": {
-            "mentions_obligatoires_pv": {},
-            "alertes": [],
-            "recommandations": [],
-        },
-        "observations_juridiques": "Donnees de demonstration uniquement.",
-        "diarization": [],
-    }
-
-
-# ─── Configuration page ────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="Assistant AG",
-    page_icon="🏛️",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
-# ─── Sidebar ───────────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.title("🏛️ Assistant AG")
-    st.caption("Transcription et synthese d assemblees generales francaises")
-    st.divider()
-
-    mode = st.radio(
-        "Mode",
-        ["🎭 Demo (sans cle API)", "🔑 Avec ma cle API"],
-        index=0,
-    )
-
-    api_key = None
-    hf_token_ui = None
-
-    if mode == "🔑 Avec ma cle API":
-        st.caption("🔐 Vos cles ne sont jamais stockees — utilisees uniquement le temps de votre session.")
-        api_key = st.text_input(
-            "Cle API Anthropic",
-            type="password",
-            placeholder="sk-ant-...",
-            help="Obtenez votre cle sur console.anthropic.com",
-        )
-        if not api_key:
-            st.warning("Cle API requise pour l analyse et la generation de PV.")
-        hf_token_ui = st.text_input(
-            "Token HuggingFace (optionnel)",
-            type="password",
-            placeholder="hf_...",
-            help="Requis uniquement pour la diarization (identification des locuteurs). Obtenez-le sur huggingface.co/settings/tokens",
-        )
-        if hf_token_ui:
-            st.success("Token HF present — diarization disponible ✅")
-        else:
-            st.caption("Sans token HF : transcription sans identification des locuteurs.")
-
-    st.divider()
-    st.caption("📂 [Code source](https://github.com/PSMAS30/ag-assistant)")
-    st.caption("🛠️ Stack : faster-whisper · Claude · Streamlit")
+# ─── Config page ───────────────────────────────────────────────────────────────
+st.set_page_config(page_title="Assistant AG", page_icon="🏛️", layout="wide", initial_sidebar_state="collapsed")
 
 # ─── Session state ─────────────────────────────────────────────────────────────
-for key in ["transcription", "segments", "segments_diarises", "locuteurs", "mapping_locuteurs", "analyse", "pv_texte", "demo_key", "historique_fichier_actuel"]:
-    if key not in st.session_state:
-        st.session_state[key] = None
+_DEFAULTS = {
+    "vue": "dashboard", "ag_active": None, "etape": 1, "etapes_ok": [],
+    "transcription": None, "segments": None, "segments_diarises": None,
+    "locuteurs": None, "mapping_locuteurs": None, "analyse": None,
+    "pv_texte": None, "demo_key": None, "historique_fichier_actuel": None,
+    "demo_historique_session": [],
+}
+for k, v in _DEFAULTS.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
-# demo_historique_session : liste d AG demo chargees en memoire uniquement (ephemere)
-if "demo_historique_session" not in st.session_state:
-    st.session_state.demo_historique_session = []
+# ─── Constantes ────────────────────────────────────────────────────────────────
+STEPS = [("📬","Convocation"),("👥","Présence"),("🎙️","Réunion"),("📋","Analyse"),("📄","PV"),("✍️","Signature"),("🗂️","Archivage")]
+TYPES_AG = {"copropriete":"🏢 Copropriété","association":"🤝 Association","pme_sas":"🏭 SAS","pme_sarl":"🏭 SARL","pme_autre":"🏭 PME","autre":"📋 Autre"}
 
-# ─── Onglets ───────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    "🎙️ Transcription", "📋 Analyse AG", "📄 Proces-verbal",
-    "💬 Questions", "🗂️ Historique", "📬 Convocation", "👥 Presence"
-])
+# ─── Helpers ───────────────────────────────────────────────────────────────────
+def _nav(vue, **kw):
+    st.session_state.vue = vue
+    for k, v in kw.items():
+        st.session_state[k] = v
+    st.rerun()
+
+def _statut_ag(entree):
+    meta = entree.get("meta_historique", {})
+    if meta.get("signature_date"): return 7, "✅ Signé"
+    if entree.get("pv_texte"): return 6, "📄 PV généré"
+    a = entree.get("analyse", {})
+    if a and a.get("resolutions"): return 5, "📋 Analysé"
+    if entree.get("transcription"): return 4, "🎙️ Transcrit"
+    return 1, "🆕 Nouveau"
+
+def _charger_session(fichier):
+    e = historique_manager.charger_ag(fichier)
+    st.session_state.ag_active = e
+    st.session_state.analyse = e.get("analyse", {})
+    st.session_state.pv_texte = e.get("pv_texte")
+    st.session_state.transcription = e.get("transcription", "")
+    st.session_state.historique_fichier_actuel = fichier
+    etape, _ = _statut_ag(e)
+    st.session_state.etape = min(etape, 7)
+    st.session_state.etapes_ok = list(range(1, etape))
+
+def _analyse_simulee(demo):
+    m = demo.get("metadata", {})
+    nb_p = m.get("nb_presents", 0) or 0
+    nb_r = m.get("nb_representes", 0) or 0
+    return {
+        "meta": {"version":"2.0","genere_par":"demo","niveau_confiance_global":"demo","avertissement":"Données de démonstration."},
+        "type_ag": m.get("type","autre"),
+        "informations_generales": {"entite":m.get("nom","Demo"),"date":m.get("date",""),"lieu":m.get("lieu",""),"type_assemblee":"AG ordinaire annuelle","heure_ouverture":"","heure_cloture":"","president_seance":m.get("president",m.get("syndic","")),"secretaire":"","scrutateurs":[]},
+        "participants": {"presents":[{"nom":f"{nb_p} présents","qualite":"membre","voix_ou_parts":None,"observations":""}],"representes":[],"absents_excuses":[],"total_presents":nb_p,"total_representes":nb_r,"total_votants":nb_p+nb_r,"total_voix":nb_p+nb_r,"quorum_requis":"Selon statuts","quorum_calcule":None,"quorum_atteint":True,"base_legale_quorum":"","observations_quorum":"Demo"},
+        "ordre_du_jour":[],"resolutions":[],"decisions_finales":[],"points_divers":["[Demo]"],
+        "conformite_legale":{"mentions_obligatoires_pv":{},"alertes":[],"recommandations":[]},
+        "observations_juridiques":"Demo.","niveaux_confiance_sections":{},"diarization":[],
+    }
+
+# ─── Sidebar ───────────────────────────────────────────────────────────────────
+def _sidebar():
+    with st.sidebar:
+        st.title("🏛️ Assistant AG")
+        st.caption("Gestion d assemblees generales françaises")
+        st.divider()
+        mode = st.radio("Mode", ["🎭 Demo (sans cle API)", "🔑 Avec ma cle API"], index=0, key="mode_global")
+        api_key = hf_token_ui = None
+        if mode == "🔑 Avec ma cle API":
+            st.caption("🔐 Clés utilisées en session uniquement.")
+            api_key = st.text_input("Clé API Anthropic", type="password", placeholder="sk-ant-...", key="api_key_input")
+            if not api_key: st.warning("Clé API requise pour l analyse.")
+            hf_token_ui = st.text_input("Token HuggingFace (diarization)", type="password", placeholder="hf_...", key="hf_token_input")
+        st.divider()
+        if st.session_state.vue != "dashboard":
+            if st.button("🏠 Mes Assemblées Générales", use_container_width=True):
+                _nav("dashboard")
+        st.caption("📂 [Code source](https://github.com/PSMAS30/ag-assistant)")
+        st.caption("🛠️ faster-whisper · Claude · Streamlit")
+    return mode, api_key, hf_token_ui
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ONGLET 1 — TRANSCRIPTION
+# VUE 1 — DASHBOARD
 # ══════════════════════════════════════════════════════════════════════════════
-with tab1:
-    st.header("🎙️ Transcription audio")
+def _dashboard():
+    col_t, col_b = st.columns([4, 1])
+    with col_t: st.title("🏛️ Mes Assemblées Générales")
+    with col_b:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("➕ Nouvelle AG", type="primary", use_container_width=True):
+            _nav("nouvelle_ag")
+    st.divider()
 
+    demo_session = st.session_state.demo_historique_session
+    dossiers = historique_manager.lister_dossiers()
+    nb_disk = historique_manager.nb_ag_sauvegardees()
+
+    # ── Aucune donnee ────────────────────────────────────────────────────────
+    if not demo_session and nb_disk == 0:
+        st.info("Aucune assemblée générale. Cliquez sur **➕ Nouvelle AG** pour commencer, ou chargez des données de démonstration.")
+        with st.expander("🎭 Données de démonstration"):
+            st.caption("4 AG fictives : Copropriété Les Acacias 2023+2024, Association Élan Vitry, SAS Innov Tech")
+            if st.button("📥 Charger les 4 AG demo", key="btn_demo_empty"):
+                _charger_demo()
+        return
+
+    # ── Section demo session ─────────────────────────────────────────────────
+    if demo_session:
+        demo_par_entite = defaultdict(list)
+        for e in demo_session:
+            entite = e["analyse"].get("informations_generales", {}).get("entite", "Demo")
+            demo_par_entite[entite].append(e)
+        for entite, entrees in demo_par_entite.items():
+            type_ag = entrees[0]["analyse"].get("type_ag", "autre")
+            with st.expander(f"🎭 **{entite}**  ·  {TYPES_AG.get(type_ag,type_ag)}  ·  {len(entrees)} AG  *(session demo)*", expanded=True):
+                for i, e in enumerate(entrees):
+                    infos = e["analyse"].get("informations_generales", {})
+                    date = infos.get("date", "date inconnue")
+                    nb_r = len(e["analyse"].get("resolutions", []))
+                    c1, c2, c3 = st.columns([3, 2, 1])
+                    c1.markdown(f"**AG du {date}**  ·  {nb_r} résolution(s)")
+                    c2.caption("🎭 Demo session")
+                    with c3:
+                        if st.button("Ouvrir →", key=f"open_demo_{entite}_{i}", use_container_width=True):
+                            st.session_state.analyse = e["analyse"]
+                            st.session_state.pv_texte = e.get("pv_texte")
+                            st.session_state.transcription = ""
+                            st.session_state.ag_active = {"meta_historique":{"entite":entite,"type_ag":type_ag,"date_ag":date,"is_demo_session":True},"analyse":e["analyse"],"pv_texte":e.get("pv_texte")}
+                            st.session_state.etape = 4
+                            st.session_state.etapes_ok = [1, 2, 3]
+                            st.session_state.historique_fichier_actuel = None
+                            _nav("workflow")
+        if st.button("🗑️ Vider la demo session", key="btn_vider_demo"):
+            st.session_state.demo_historique_session = []
+            st.rerun()
+        st.divider()
+
+    # ── AG reelles (disque) ──────────────────────────────────────────────────
+    if nb_disk > 0:
+        for dos in dossiers:
+            ag_list = historique_manager.lister_ag(dossier=dos["dossier"])
+            type_label = TYPES_AG.get(ag_list[0]["type_ag"] if ag_list else "autre", "")
+            with st.expander(f"📁 **{dos['entite']}**  ·  {type_label}  ·  {dos['nb_ag']} AG", expanded=True):
+                for ag in ag_list:
+                    try:
+                        e2 = historique_manager.charger_ag(ag["fichier"])
+                        etape_e, badge = _statut_ag(e2)
+                    except Exception:
+                        etape_e, badge = 1, "?"
+                    c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
+                    c1.markdown(f"**AG du {ag['date_ag'] or '?'}**  ·  {ag['nb_resolutions']} résolution(s)")
+                    c2.caption(badge)
+                    c3.caption(f"Étape {etape_e}/7")
+                    with c4:
+                        if st.button("Ouvrir →", key=f"open_{ag['nom_fichier']}", use_container_width=True):
+                            _charger_session(ag["fichier"])
+                            _nav("workflow")
+
+    # ── Loader demo ──────────────────────────────────────────────────────────
+    with st.expander("🎭 Données de démonstration"):
+        st.caption("Éphémère — disparaît au rechargement de page")
+        if st.button("📥 Charger les 4 AG demo", key="btn_demo_bottom"):
+            _charger_demo()
+
+def _charger_demo():
+    existantes = {(e["analyse"].get("informations_generales",{}).get("entite",""), e["analyse"].get("informations_generales",{}).get("date","")) for e in st.session_state.demo_historique_session}
+    nb = 0
+    for e in historique_demo.DEMO_HISTORIQUE:
+        infos = e["analyse"].get("informations_generales", {})
+        if (infos.get("entite",""), infos.get("date","")) not in existantes:
+            st.session_state.demo_historique_session.append(e)
+            nb += 1
+    if nb: st.success(f"{nb} AG demo chargées ✅"); st.rerun()
+    else: st.info("Données demo déjà présentes.")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# VUE 2 — NOUVELLE AG
+# ══════════════════════════════════════════════════════════════════════════════
+def _nouvelle_ag():
+    if st.button("← Retour"): _nav("dashboard")
+    st.title("➕ Nouvelle Assemblée Générale")
+    st.divider()
+    with st.form("form_nouvelle_ag"):
+        c1, c2 = st.columns(2)
+        with c1:
+            entite = st.text_input("Nom de l entité *", placeholder="Ex : Copropriété Les Lilas")
+            type_ag = st.selectbox("Type *", list(TYPES_AG.keys()), format_func=lambda k: TYPES_AG[k])
+        with c2:
+            date_ag = st.text_input("Date prévue", placeholder="JJ/MM/AAAA")
+            lieu = st.text_input("Lieu", placeholder="Adresse ou salle")
+        notes = st.text_area("Notes / contexte", height=80)
+        ok = st.form_submit_button("Créer cette AG →", type="primary")
+    if ok and entite:
+        analyse_vide = {
+            "type_ag": type_ag,
+            "informations_generales": {"entite":entite,"date":date_ag,"lieu":lieu,"type_assemblee":"AG ordinaire annuelle","heure_ouverture":"","heure_cloture":"","president_seance":"","secretaire":"","scrutateurs":[]},
+            "participants": {"presents":[],"representes":[],"absents_excuses":[],"total_presents":None,"total_representes":None,"total_votants":None,"total_voix":None,"quorum_requis":"","quorum_calcule":None,"quorum_atteint":None,"base_legale_quorum":"","observations_quorum":""},
+            "ordre_du_jour":[],"resolutions":[],"decisions_finales":[],"points_divers":[],
+            "conformite_legale":{"mentions_obligatoires_pv":{},"alertes":[],"recommandations":[]},
+            "observations_juridiques":"","niveaux_confiance_sections":{},"diarization":[],
+        }
+        st.session_state.ag_active = {"meta_historique":{"entite":entite,"dossier":historique_manager._nom_dossier(entite),"type_ag":type_ag,"date_ag":date_ag,"lieu":lieu,"notes":notes,"sauvegarde_le":datetime.now().isoformat(),"nb_resolutions":0,"a_pv":False,"audit_trail":[]},"analyse":analyse_vide,"pv_texte":None,"transcription":""}
+        st.session_state.analyse = analyse_vide
+        st.session_state.pv_texte = None
+        st.session_state.transcription = ""
+        st.session_state.etape = 1
+        st.session_state.etapes_ok = []
+        st.session_state.historique_fichier_actuel = None
+        _nav("workflow")
+    elif ok: st.warning("Le nom de l entité est obligatoire.")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# VUE 3 — WORKFLOW
+# ══════════════════════════════════════════════════════════════════════════════
+def _step_bar(etape, etapes_ok):
+    cols = st.columns(len(STEPS))
+    for i, (col, (ic, nom)) in enumerate(zip(cols, STEPS), 1):
+        if i in etapes_ok:
+            col.markdown(f"<div style='text-align:center;color:#28a745;font-size:.85em'>{ic}<br>✅ {nom}</div>", unsafe_allow_html=True)
+        elif i == etape:
+            col.markdown(f"<div style='text-align:center;color:#0066cc;font-weight:bold;font-size:.85em;border-bottom:3px solid #0066cc;padding-bottom:3px'>{ic}<br>▶ {nom}</div>", unsafe_allow_html=True)
+        else:
+            col.markdown(f"<div style='text-align:center;color:#aaa;font-size:.85em'>{ic}<br>{nom}</div>", unsafe_allow_html=True)
+    st.markdown("---")
+
+def _nav_btns(etape, etapes_ok, label="Étape suivante →", can_next=True):
+    c1, _, c3 = st.columns([1, 3, 1])
+    with c1:
+        if etape > 1 and st.button("← Précédent", key=f"prev_{etape}", use_container_width=True):
+            st.session_state.etape = etape - 1; st.rerun()
+    with c3:
+        if etape < 7 and can_next:
+            if st.button(label, key=f"next_{etape}", type="primary", use_container_width=True):
+                if etape not in etapes_ok: etapes_ok.append(etape)
+                st.session_state.etapes_ok = etapes_ok
+                st.session_state.etape = etape + 1; st.rerun()
+
+def _workflow(mode, api_key, hf_token_ui):
+    ag = st.session_state.ag_active or {}
+    meta = ag.get("meta_historique", {})
+    entite = meta.get("entite", "Assemblée Générale")
+    date_ag = meta.get("date_ag", "")
+    type_ag = meta.get("type_ag", "autre")
+    etape = st.session_state.etape
+    etapes_ok = st.session_state.etapes_ok
+
+    cb, ct, _ = st.columns([1, 5, 1])
+    with cb:
+        if st.button("← Retour", key="back_wf"): _nav("dashboard")
+    with ct:
+        st.markdown(f"## 🏛️ {entite}")
+        st.caption(f"{TYPES_AG.get(type_ag, type_ag)}  ·  {date_ag or 'date non définie'}")
+
+    _step_bar(etape, etapes_ok)
+
+    # Nav rapide sidebar
+    with st.sidebar:
+        st.divider()
+        st.caption("Navigation rapide")
+        for i, (ic, nom) in enumerate(STEPS, 1):
+            s = "✅" if i in etapes_ok else ("▶" if i == etape else "○")
+            if st.button(f"{s} {i}. {ic} {nom}", key=f"nav_{i}", use_container_width=True):
+                st.session_state.etape = i; st.rerun()
+
+    if etape == 1: _s1_convocation(ag, meta, etape, etapes_ok, api_key)
+    elif etape == 2: _s2_presence(ag, meta, etape, etapes_ok)
+    elif etape == 3: _s3_reunion(ag, meta, etape, etapes_ok, mode, api_key, hf_token_ui)
+    elif etape == 4: _s4_analyse(ag, meta, etape, etapes_ok, mode, api_key)
+    elif etape == 5: _s5_pv(ag, meta, etape, etapes_ok, api_key)
+    elif etape == 6: _s6_signature(ag, meta, etape, etapes_ok)
+    elif etape == 7: _s7_archivage(ag, meta, etape, etapes_ok)
+
+# ── S1 Convocation ─────────────────────────────────────────────────────────────
+def _s1_convocation(ag, meta, etape, etapes_ok, api_key):
+    st.subheader("📬 Étape 1 — Convocation")
+    st.caption("Générez la convocation légale à envoyer aux membres avant la réunion.")
+    analyse = st.session_state.analyse or ag.get("analyse", {})
+    c1, c2 = st.columns(2)
+    with c1:
+        date_c = st.date_input("Date d envoi", value=datetime.now(), key="conv_date")
+        date_ag_p = st.text_input("Date de l AG", value=meta.get("date_ag",""), placeholder="JJ/MM/AAAA", key="conv_dag")
+    with c2:
+        lieu = st.text_input("Lieu", value=meta.get("lieu", analyse.get("informations_generales",{}).get("lieu","")), key="conv_lieu")
+    if st.button("Générer la convocation", type="primary", key="btn_conv"):
+        ds = date_c.strftime("%d/%m/%Y") if date_c else None
+        ca, cb2 = st.columns(2)
+        with ca:
+            tmp = None
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as t: tmp = t.name
+                convocation_generator.generer_convocation_pdf(analyse, tmp, ds, date_ag_p or None, lieu or None)
+                with open(tmp, "rb") as f: st.download_button("📥 Convocation PDF", f.read(), "convocation_ag.pdf", "application/pdf", key="dl_conv_pdf")
+            except Exception as e: st.error(f"PDF : {e}")
+            finally:
+                if tmp and os.path.exists(tmp): os.unlink(tmp)
+        with cb2:
+            tmp = None
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as t: tmp = t.name
+                convocation_generator.generer_convocation_word(analyse, tmp, ds, date_ag_p or None, lieu or None)
+                with open(tmp, "rb") as f: st.download_button("📥 Convocation Word", f.read(), "convocation_ag.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", key="dl_conv_word")
+            except Exception as e: st.error(f"Word : {e}")
+            finally:
+                if tmp and os.path.exists(tmp): os.unlink(tmp)
+    _nav_btns(etape, etapes_ok, "Préparer la présence →")
+
+# ── S2 Présence ────────────────────────────────────────────────────────────────
+def _s2_presence(ag, meta, etape, etapes_ok):
+    st.subheader("👥 Étape 2 — Feuille de présence")
+    st.caption("Générez la feuille de présence à faire signer lors de la réunion.")
+    analyse = st.session_state.analyse or ag.get("analyse", {})
+    p = analyse.get("participants", {})
+    if p.get("total_votants"):
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Présents", p.get("total_presents","—"))
+        c2.metric("Représentés", p.get("total_representes","—"))
+        c3.metric("Total votants", p.get("total_votants","—"))
+    if st.button("Générer la feuille de présence", type="primary", key="btn_pres"):
+        ca, cb = st.columns(2)
+        with ca:
+            tmp = None
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as t: tmp = t.name
+                presence_generator.generer_feuille_presence_pdf(analyse, tmp)
+                with open(tmp, "rb") as f: st.download_button("📥 Présence PDF", f.read(), "feuille_presence.pdf", "application/pdf", key="dl_pres_pdf")
+            except Exception as e: st.error(f"PDF : {e}")
+            finally:
+                if tmp and os.path.exists(tmp): os.unlink(tmp)
+        with cb:
+            tmp = None
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as t: tmp = t.name
+                presence_generator.generer_feuille_presence_word(analyse, tmp)
+                with open(tmp, "rb") as f: st.download_button("📥 Présence Word", f.read(), "feuille_presence.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", key="dl_pres_word")
+            except Exception as e: st.error(f"Word : {e}")
+            finally:
+                if tmp and os.path.exists(tmp): os.unlink(tmp)
+    _nav_btns(etape, etapes_ok, "Enregistrer la réunion →")
+
+# ── S3 Réunion ─────────────────────────────────────────────────────────────────
+def _s3_reunion(ag, meta, etape, etapes_ok, mode, api_key, hf_token_ui):
+    st.subheader("🎙️ Étape 3 — Réunion")
+    st.caption("Chargez l enregistrement audio ou utilisez une AG de démonstration.")
     if not TRANSCRIPTION_DISPONIBLE:
-        st.warning(
-            "⚠️ **Transcription audio non disponible sur cette instance.**\n\n"
-            "La transcription locale (faster-whisper) et la diarization (pyannote) "
-            "necessitent une installation locale avec GPU/CPU dedie.\n\n"
-            "👉 Utilisez le **mode demo** ci-dessous pour tester toutes les fonctionnalites, "
-            "ou [installez l app en local](https://github.com/PSMAS30/ag-assistant) "
-            "pour traiter vos propres enregistrements."
-        )
-
-    # Sur Streamlit Cloud, masquer l option audio (transcription non disponible)
-    options_source = ["🎭 Utiliser une AG de demo"] if not TRANSCRIPTION_DISPONIBLE else ["📁 Charger un fichier audio", "🎭 Utiliser une AG de demo"]
-    source = st.radio(
-        "Source",
-        options_source,
-        horizontal=True,
-    )
-
-    if source == "🎭 Utiliser une AG de demo":
+        st.warning("⚠️ **Transcription non disponible sur cette instance.** Utilisez le mode demo ou installez l app en local.")
+    opts = ["📁 Fichier audio", "🎭 AG de demo"] if TRANSCRIPTION_DISPONIBLE else ["🎭 AG de demo"]
+    src = st.radio("Source", opts, horizontal=True, key="s3_src")
+    if src == "🎭 AG de demo":
         demos = demo_data.list_demos()
-        choix = st.selectbox(
-            "Choisir une AG de demo",
-            options=[d["key"] for d in demos],
-            format_func=lambda k: next(d["label"] for d in demos if d["key"] == k),
-        )
-        if st.button("Charger cette demo", type="primary"):
+        choix = st.selectbox("AG de demo", [d["key"] for d in demos], format_func=lambda k: next(d["label"] for d in demos if d["key"] == k), key="s3_demo_choix")
+        if st.button("Charger cette demo", type="primary", key="btn_s3_demo"):
             d = demo_data.get_demo(choix)
             st.session_state.transcription = d["transcription"].strip()
             st.session_state.segments = None
             st.session_state.demo_key = choix
-            st.session_state.analyse = None
-            st.session_state.pv_texte = None
-            st.success("AG de demo chargee ✅")
-
-    else:
-        if not TRANSCRIPTION_DISPONIBLE:
-            st.info("💡 Transcription audio disponible uniquement en installation locale. Utilisez le mode demo a gauche.")
-            st.stop()
-
-        fichier = st.file_uploader(
-            "Fichier audio",
-            type=["mp3", "wav", "m4a", "ogg", "flac"],
-            help="Formats supportes : MP3, WAV, M4A, OGG, FLAC",
-        )
-        col_opt1, col_opt2 = st.columns(2)
-        with col_opt1:
-            modele = st.select_slider(
-                "Precision de transcription",
-                options=transcriber.MODELES_DISPONIBLES,
-                value=transcriber.MODELE_DEFAUT,
-                help="Plus le modele est grand, plus la transcription est precise mais lente.",
-            )
-        with col_opt2:
-            activer_diarization = st.toggle(
-                "🗣️ Activer la diarization",
-                value=False,
-                help="Identifie qui parle et quand. Necessite HF_TOKEN dans .env. Premier lancement : ~800 Mo telecharges.",
-            )
-            if activer_diarization:
-                nb_locuteurs_input = st.number_input(
-                    "Nombre de locuteurs (0 = auto)",
-                    min_value=0, max_value=20, value=0,
-                    help="Laisser a 0 pour detection automatique. Specifier si connu pour de meilleurs resultats.",
-                )
-
-        if fichier and st.button("Transcrire", type="primary"):
-            suffix = "." + fichier.name.rsplit(".", 1)[-1]
-            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-                tmp.write(fichier.read())
-                tmp_path = tmp.name
-
+            st.success("Transcription demo chargée ✅")
+    elif src == "📁 Fichier audio" and TRANSCRIPTION_DISPONIBLE:
+        fichier = st.file_uploader("Fichier audio", type=["mp3","wav","m4a","ogg","flac"], key="s3_audio")
+        ca, cb = st.columns(2)
+        with ca: modele = st.select_slider("Précision", options=transcriber.MODELES_DISPONIBLES, value=transcriber.MODELE_DEFAUT, key="s3_modele")
+        with cb:
+            diar = st.toggle("🗣️ Diarization", key="s3_diar")
+            if diar: nb_loc = st.number_input("Nb locuteurs (0=auto)", 0, 20, 0, key="s3_nb_loc")
+        if fichier and st.button("Transcrire", type="primary", key="btn_s3_trans"):
+            suffix = "." + fichier.name.rsplit(".",1)[-1]
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as t:
+                t.write(fichier.read()); tp = t.name
             try:
-                if activer_diarization:
-                    hf_token = hf_token_ui or os.getenv("HF_TOKEN", "")
-                    if not hf_token:
-                        st.error("Token HuggingFace requis pour la diarization — entrez-le dans la barre laterale.")
-                        st.stop()
-                    with st.spinner("Transcription + diarization en cours (peut prendre quelques minutes)…"):
-                        nb_loc = int(nb_locuteurs_input) if nb_locuteurs_input > 0 else None
-                        resultat = transcriber.transcrire_avec_diarization(
-                            tmp_path, modele=modele, hf_token=hf_token, nb_locuteurs=nb_loc
-                        )
-                    st.session_state.transcription = resultat["texte"]
-                    st.session_state.segments = resultat.get("segments", [])
-                    st.session_state.segments_diarises = resultat.get("segments_diarises", [])
-                    st.session_state.locuteurs = resultat.get("locuteurs", [])
-                    st.session_state.mapping_locuteurs = {l: l for l in resultat.get("locuteurs", [])}
-                    st.session_state.analyse = None
-                    st.session_state.pv_texte = None
-                    duree = resultat.get("duree_secondes", "?")
-                    nb_loc_detectes = len(resultat.get("locuteurs", []))
-                    st.success(f"Transcription + diarization terminees ✅ ({duree}s — {nb_loc_detectes} locuteurs detectes)")
+                if diar:
+                    hf = hf_token_ui or os.getenv("HF_TOKEN","")
+                    if not hf: st.error("Token HF requis."); st.stop()
+                    with st.spinner("Transcription + diarization…"):
+                        res = transcriber.transcrire_avec_diarization(tp, modele=modele, hf_token=hf, nb_locuteurs=int(nb_loc) if nb_loc > 0 else None)
+                    st.session_state.transcription = res["texte"]
+                    st.session_state.segments = res.get("segments",[])
+                    st.session_state.segments_diarises = res.get("segments_diarises",[])
+                    st.session_state.locuteurs = res.get("locuteurs",[])
+                    st.session_state.mapping_locuteurs = {l:l for l in res.get("locuteurs",[])}
+                    st.success(f"✅ {res.get('duree_secondes')}s — {len(res.get('locuteurs',[]))} locuteurs")
                 else:
-                    with st.spinner("Transcription en cours (modele local, sans cloud)…"):
-                        resultat = transcriber.transcrire_audio(tmp_path, modele=modele)
-                    st.session_state.transcription = resultat["texte"]
-                    st.session_state.segments = resultat.get("segments", [])
+                    with st.spinner("Transcription…"):
+                        res = transcriber.transcrire_audio(tp, modele=modele)
+                    st.session_state.transcription = res["texte"]
+                    st.session_state.segments = res.get("segments",[])
                     st.session_state.segments_diarises = None
-                    st.session_state.locuteurs = None
-                    st.session_state.analyse = None
-                    st.session_state.pv_texte = None
-                    duree = resultat.get("duree_secondes", "?")
-                    st.success(f"Transcription terminee ✅ ({duree}s de contenu)")
-            except Exception as e:
-                st.error(f"Erreur : {e}")
-            finally:
-                os.unlink(tmp_path)
-
-    # Affichage transcription
+                    st.success(f"✅ Transcription terminée ({res.get('duree_secondes')}s)")
+            except Exception as e: st.error(f"Erreur : {e}")
+            finally: os.unlink(tp)
     if st.session_state.transcription:
         st.divider()
-        st.subheader("Texte transcrit")
-        texte_editable = st.text_area(
-            "Vous pouvez corriger le texte avant de lancer l analyse.",
-            value=st.session_state.transcription,
-            height=300,
-        )
-        if texte_editable != st.session_state.transcription:
-            st.session_state.transcription = texte_editable
-
-        # ── Affichage des segments horodates ──────────────────────────────────
-        segments = st.session_state.segments
-        if segments:
-            with st.expander(f"⏱️ Segments horodates ({len(segments)} segments)", expanded=False):
-                st.caption("Chaque segment correspond a un passage de parole detecte par Whisper.")
-                cols_header = st.columns([1, 1, 6])
-                cols_header[0].markdown("**Debut**")
-                cols_header[1].markdown("**Fin**")
-                cols_header[2].markdown("**Texte**")
-                st.divider()
-                for seg in segments:
+        txte = st.text_area("Transcription (éditable)", value=st.session_state.transcription, height=250, key="s3_txte")
+        if txte != st.session_state.transcription: st.session_state.transcription = txte
+        segs = st.session_state.segments
+        if segs:
+            with st.expander(f"⏱️ Segments ({len(segs)})"):
+                for seg in segs:
                     def fmt(s):
-                        if s is None:
-                            return "—"
-                        m, s2 = divmod(int(s), 60)
-                        return f"{m:02d}:{s2:02d}"
-                    c1, c2, c3 = st.columns([1, 1, 6])
-                    c1.code(fmt(seg.get("debut")))
-                    c2.code(fmt(seg.get("fin")))
-                    c3.write(seg.get("texte", ""))
-        elif st.session_state.demo_key:
-            st.info("ℹ️ Les segments horodates sont disponibles uniquement apres transcription d un fichier audio reel.")
-
-        # ── Panneau diarization ───────────────────────────────────────────────
-        segments_diarises = st.session_state.segments_diarises
-        locuteurs = st.session_state.locuteurs
-        if segments_diarises and locuteurs:
-            st.divider()
-            st.subheader("🗣️ Diarization — Identification des locuteurs")
-
-            # Renommage interactif
-            with st.expander("✏️ Renommer les locuteurs detectes", expanded=True):
-                st.caption("Remplacez les identifiants techniques (SPEAKER_00...) par les vrais noms.")
-                mapping = st.session_state.mapping_locuteurs or {l: l for l in locuteurs}
-                nouveau_mapping = {}
+                        if s is None: return "—"
+                        m, s2 = divmod(int(s), 60); return f"{m:02d}:{s2:02d}"
+                    st.markdown(f"`{fmt(seg.get('debut'))} → {fmt(seg.get('fin'))}` {seg.get('texte','')}")
+        segs_d = st.session_state.segments_diarises
+        locs = st.session_state.locuteurs
+        if segs_d and locs:
+            with st.expander("🗣️ Renommer les locuteurs", expanded=True):
+                mapping = st.session_state.mapping_locuteurs or {l:l for l in locs}
+                new_map = {}
                 cols = st.columns(2)
-                for i, locuteur in enumerate(locuteurs):
-                    with cols[i % 2]:
-                        nouveau_nom = st.text_input(
-                            f"Nom pour {locuteur}",
-                            value=mapping.get(locuteur, locuteur),
-                            key=f"nom_loc_{locuteur}",
-                        )
-                        nouveau_mapping[locuteur] = nouveau_nom
-                if st.button("Appliquer les noms", type="secondary"):
-                    st.session_state.mapping_locuteurs = nouveau_mapping
-                    # Mettre a jour le texte de transcription avec les noms
-                    segments_renommes = transcriber.renommer_locuteurs(segments_diarises, nouveau_mapping)
-                    st.session_state.segments_diarises = segments_renommes
-                    texte_diarise = transcriber.segments_diarises_vers_texte(segments_renommes)
-                    st.session_state.transcription = texte_diarise
-                    st.success("Noms appliques ✅ — la transcription a ete mise a jour avec les locuteurs.")
-                    st.rerun()
+                for i, loc in enumerate(locs):
+                    with cols[i % 2]: new_map[loc] = st.text_input(f"Nom pour {loc}", value=mapping.get(loc,loc), key=f"loc_{loc}")
+                if st.button("Appliquer", key="btn_locs"):
+                    st.session_state.mapping_locuteurs = new_map
+                    sr = transcriber.renommer_locuteurs(segs_d, new_map)
+                    st.session_state.segments_diarises = sr
+                    st.session_state.transcription = transcriber.segments_diarises_vers_texte(sr)
+                    st.success("Noms appliqués ✅"); st.rerun()
+    _nav_btns(etape, etapes_ok, "Analyser l AG →", can_next=bool(st.session_state.transcription))
 
-            # Affichage timeline par locuteur
-            mapping_actuel = st.session_state.mapping_locuteurs or {l: l for l in locuteurs}
-            couleurs = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b"]
-            locuteurs_couleurs = {loc: couleurs[i % len(couleurs)] for i, loc in enumerate(locuteurs)}
-
-            with st.expander(f"📜 Transcription par locuteur ({len(segments_diarises)} segments)", expanded=False):
-                for seg in segments_diarises:
-                    loc_tech = seg.get("locuteur_original", seg.get("locuteur", "?"))
-                    loc_affiche = mapping_actuel.get(loc_tech, seg.get("locuteur", "?"))
-                    couleur = locuteurs_couleurs.get(loc_tech, "#888888")
-                    debut = seg.get("debut", 0)
-                    m, s = divmod(int(debut), 60)
-                    ts = f"{m:02d}:{s:02d}"
-                    st.markdown(
-                        f'<div style="border-left: 4px solid {couleur}; padding-left: 10px; margin: 4px 0;">'
-                        f'<span style="color:{couleur}; font-weight:bold;">{loc_affiche}</span> '
-                        f'<span style="color:#888; font-size:0.85em;">[{ts}]</span><br>'
-                        f'{seg.get("texte", "")}'
-                        f'</div>',
-                        unsafe_allow_html=True,
-                    )
-
-# ══════════════════════════════════════════════════════════════════════════════
-# ONGLET 2 — ANALYSE AG
-# ══════════════════════════════════════════════════════════════════════════════
-with tab2:
-    st.header("📋 Analyse de l assemblée générale")
-
-    if not st.session_state.transcription and not st.session_state.analyse:
-        st.info("👈 Commencez par charger ou transcrire une AG dans l onglet Transcription.")
-    elif st.session_state.analyse and not st.session_state.transcription:
-        # AG chargee depuis l historique — afficher l analyse directement
-        st.info("ℹ️ AG chargee depuis l historique — analyse disponible ci-dessous.")
-    if st.session_state.transcription or st.session_state.analyse:
-        # Bouton Analyser uniquement si une transcription est disponible
-        if st.session_state.transcription and st.button("Analyser l AG", type="primary"):
-            if mode == "🎭 Demo (sans cle API)" and st.session_state.demo_key:
-                d = demo_data.get_demo(st.session_state.demo_key)
-                # Priorite : cle saisie > cle .env locale > simulation
-                cle_effective = api_key or os.getenv("ANTHROPIC_API_KEY", "")
-                with st.spinner("Analyse en cours (mode demo)…"):
+# ── S4 Analyse ─────────────────────────────────────────────────────────────────
+def _s4_analyse(ag, meta, etape, etapes_ok, mode, api_key):
+    st.subheader("📋 Étape 4 — Analyse")
+    st.caption("Claude extrait résolutions, votes, quorum et vérifie la conformité légale.")
+    a = st.session_state.analyse
+    has_trans = bool(st.session_state.transcription)
+    has_ana = bool(a and a.get("resolutions") is not None)
+    cle = api_key or os.getenv("ANTHROPIC_API_KEY","")
+    if has_trans:
+        if not cle: st.info("Entrez votre clé API dans la barre latérale pour analyser.")
+        else:
+            if st.button("Analyser l AG avec Claude", type="primary", key="btn_ana"):
+                with st.spinner("Analyse en cours…"):
                     try:
-                        if not cle_effective:
-                            raise ValueError("Pas de cle API disponible")
-                        st.session_state.analyse = analyzer.analyser_transcription(
-                            st.session_state.transcription,
-                            api_key=cle_effective,
-                        )
-                        st.success("Analyse terminee ✅")
-                    except Exception:
-                        st.warning("Aucune cle API disponible — affichage d une analyse simulee.")
-                        st.session_state.analyse = _analyse_simulee(d)
-            elif api_key:
-                with st.spinner("Analyse par Claude en cours…"):
-                    try:
-                        st.session_state.analyse = analyzer.analyser_transcription(
-                            st.session_state.transcription, api_key
-                        )
-                        # Sauvegarde automatique dans l historique
-                        try:
-                            chemin = historique_manager.sauvegarder_ag(st.session_state.analyse)
-                            st.session_state.historique_fichier_actuel = chemin
-                        except Exception:
-                            pass
-                        st.success("Analyse terminee ✅ — sauvegardee dans l historique")
-                    except Exception as e:
-                        st.error(f"Erreur : {e}")
-            else:
-                st.warning("Cle API requise pour lancer l analyse.")
+                        st.session_state.analyse = analyzer.analyser_transcription(st.session_state.transcription, cle)
+                        a = st.session_state.analyse
+                        st.success("Analyse terminée ✅")
+                    except Exception as e: st.error(f"Erreur : {e}")
+    elif not has_ana:
+        st.info("Chargez d abord une transcription (étape 3).")
+    if a and a.get("resolutions") is not None:
+        meta_a = a.get("meta",{})
+        if meta_a.get("avertissement"): st.warning(f"⚠️ {meta_a['avertissement']}")
+        infos = a.get("informations_generales",{})
+        p2 = a.get("participants",{})
+        c1,c2,c3,c4 = st.columns(4)
+        c1.metric("Type", a.get("type_ag","—").replace("_"," ").capitalize())
+        c2.metric("Votants", p2.get("total_votants","—"))
+        qr = p2.get("quorum_atteint")
+        c3.metric("Quorum", "✅ Atteint" if qr is True else "❌ Non atteint" if qr is False else "—")
+        c4.metric("Confiance IA", meta_a.get("niveau_confiance_global","—").capitalize())
+        st.subheader(f"{infos.get('entite','')} — {infos.get('date','')}")
+        conf = a.get("niveaux_confiance_sections",{})
+        if conf and any(isinstance(conf.get(k),(int,float)) for k in ["participants","votes","quorum"]):
+            with st.expander("📊 Confiance par section", expanded=True):
+                secs = [("Participants",conf.get("participants")),("Votes",conf.get("votes")),("Quorum",conf.get("quorum")),("Convocation",conf.get("convocation")),("Ordre du jour",conf.get("ordre_du_jour"))]
+                valid = [(l,s) for l,s in secs if s is not None]
+                cols = st.columns(len(valid))
+                for i,(label,score) in enumerate(valid):
+                    ic = "✅" if score>=90 else "⚠️" if score>=70 else "❌"
+                    cols[i].metric(label, f"{ic} {score}%"); cols[i].progress(int(score)/100)
+        resolutions = a.get("resolutions",[])
+        if resolutions:
+            st.subheader(f"Résolutions ({len(resolutions)})")
+            for r in resolutions:
+                statut = r.get("statut","")
+                ic = "✅" if statut=="adoptée" else "❌" if statut=="rejetée" else "⚠️"
+                ts = r.get("timestamps",{})
+                src_lbl = f"  ·  ⏱ {ts.get('debut')} → {ts.get('fin')}" if ts.get("debut") and ts.get("fin") else ""
+                with st.expander(f"{ic} R{r.get('numero')} — {r.get('titre',r.get('intitule',''))}{src_lbl}"):
+                    st.write(r.get("description",""))
+                    if ts.get("debut") and ts.get("fin"): st.markdown(f"**Source audio :** `{ts['debut']}` → `{ts['fin']}`")
+                    votes = r.get("votes",{}); unite = votes.get("unite","voix")
+                    cx,cy,cz = st.columns(3)
+                    cx.metric("Pour", f"{votes.get('pour','—')} {unite}")
+                    cy.metric("Contre", f"{votes.get('contre','—')} {unite}")
+                    cz.metric("Abstentions", f"{votes.get('abstentions',votes.get('abstention','—'))} {unite}")
+                    if r.get("base_legale"): st.caption(f"Base légale : {r['base_legale']}")
+        conf_leg = a.get("conformite_legale",{})
+        if conf_leg.get("alertes"):
+            with st.expander("⚖️ Alertes de conformité"):
+                for al in conf_leg["alertes"]: st.write(f"🔴 {al}")
+        with st.expander("🔍 JSON brut"): st.json(a)
+    _nav_btns(etape, etapes_ok, "Générer le PV →", can_next=has_ana or bool(a and a.get("resolutions") is not None))
 
-        if st.session_state.analyse:
-            a = st.session_state.analyse
-
-            # ── Meta conformite ──────────────────────────────────────────────
-            meta = a.get("meta", {})
-            if meta.get("avertissement"):
-                st.warning(f"⚠️ {meta['avertissement']}")
-
-            # ── Metriques principales ────────────────────────────────────────
-            infos = a.get("informations_generales", {})
-            p = a.get("participants", {})
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Type d AG", a.get("type_ag", "—").replace("_", " ").capitalize())
-            col2.metric("Votants", p.get("total_votants", "—"))
-            quorum = p.get("quorum_atteint")
-            col3.metric("Quorum", "✅ Atteint" if quorum is True else "❌ Non atteint" if quorum is False else "—")
-            col4.metric("Confiance IA", meta.get("niveau_confiance_global", "—").capitalize())
-
-            st.subheader(f"{infos.get('entite', '')} — {infos.get('date', '')}")
-            if infos.get("lieu"):
-                st.caption(f"📍 {infos['lieu']}  |  👤 President : {infos.get('president_seance', '—')}  |  ✍️ Secretaire : {infos.get('secretaire', '—')}")
-
-            # ── Niveaux de confiance par section ────────────────────────────
-            conf_sections = a.get("niveaux_confiance_sections", {})
-            if conf_sections and any(isinstance(conf_sections.get(k), (int, float)) for k in ["participants", "votes", "quorum"]):
-                with st.expander("📊 Niveau de confiance par section", expanded=True):
-                    st.caption("Score 0-100 : clarte des informations extraites de la transcription.")
-
-                    def _couleur_score(score):
-                        if score is None: return "gray"
-                        if score >= 90: return "green"
-                        if score >= 70: return "orange"
-                        return "red"
-
-                    def _icone_score(score):
-                        if score is None: return "—"
-                        if score >= 90: return "✅"
-                        if score >= 70: return "⚠️"
-                        return "❌"
-
-                    sections = [
-                        ("Participants", conf_sections.get("participants")),
-                        ("Votes", conf_sections.get("votes")),
-                        ("Quorum", conf_sections.get("quorum")),
-                        ("Convocation", conf_sections.get("convocation")),
-                        ("Ordre du jour", conf_sections.get("ordre_du_jour")),
-                    ]
-                    cols = st.columns(len(sections))
-                    for i, (label, score) in enumerate(sections):
-                        if score is not None:
-                            icone = _icone_score(score)
-                            cols[i].metric(label, f"{icone} {score}%")
-                            cols[i].progress(int(score) / 100)
-
-            # ── Ordre du jour ────────────────────────────────────────────────
-            odj = a.get("ordre_du_jour", [])
-            if odj:
-                with st.expander(f"📋 Ordre du jour ({len(odj)} points)"):
-                    for pt in odj:
-                        icone = "✅" if pt.get("traite") else "⏳"
-                        st.write(f"{icone} {pt.get('numero', '')}. {pt.get('intitule', '')}")
-
-            # ── Resolutions ──────────────────────────────────────────────────
-            def _fmt_ts(val):
-                """Formate un timestamp (secondes float ou string HH:MM) en HH:MM:SS."""
-                if val is None:
-                    return None
-                if isinstance(val, (int, float)):
-                    h = int(val // 3600)
-                    m = int((val % 3600) // 60)
-                    s = int(val % 60)
-                    return f"{h:02d}:{m:02d}:{s:02d}"
-                return str(val)  # deja formate
-
-            resolutions = a.get("resolutions", [])
-            if resolutions:
-                st.subheader(f"Resolutions ({len(resolutions)})")
-                for r in resolutions:
-                    statut = r.get("statut", "")
-                    icone = "✅" if statut == "adoptée" else "❌" if statut == "rejetée" else "⚠️"
-                    # Source horodatee
-                    ts = r.get("timestamps", {})
-                    ts_debut = _fmt_ts(ts.get("debut"))
-                    ts_fin = _fmt_ts(ts.get("fin"))
-                    source_label = f"  ·  ⏱ {ts_debut} → {ts_fin}" if ts_debut and ts_fin else ""
-                    with st.expander(f"{icone} Resolution {r.get('numero')} — {r.get('titre', r.get('intitule', ''))}{source_label}"):
-                        st.write(r.get("description", ""))
-
-                        # Source audio
-                        if ts_debut or ts_fin:
-                            st.markdown(
-                                f"**Source audio :** `{ts_debut or '?'}` → `{ts_fin or '?'}`",
-                            )
-
-                        votes = r.get("votes", {})
-                        unite = votes.get("unite", "voix")
-                        c1, c2, c3 = st.columns(3)
-                        c1.metric("Pour", f"{votes.get('pour', '—')} {unite}")
-                        c2.metric("Contre", f"{votes.get('contre', '—')} {unite}")
-                        c3.metric("Abstentions", f"{votes.get('abstentions', votes.get('abstention', '—'))} {unite}")
-                        if r.get("base_legale"):
-                            st.caption(f"Base legale : {r['base_legale']}")
-                        if r.get("majorite_requise"):
-                            st.caption(f"Majorite requise : {r['majorite_requise']}")
-                        # Niveau de confiance resolution
-                        conf_r = r.get("niveau_confiance", "")
-                        if conf_r:
-                            st.caption(f"Confiance IA : {conf_r}")
-                        incertitudes = r.get("sections_incertaines", [])
-                        if incertitudes:
-                            st.warning("Sections incertaines : " + " | ".join(incertitudes))
-
-            # ── Conformite legale ────────────────────────────────────────────
-            conformite = a.get("conformite_legale", {})
-            alertes = conformite.get("alertes", [])
-            recommandations = conformite.get("recommandations", [])
-            if alertes or recommandations:
-                with st.expander("⚖️ Conformite legale"):
-                    if alertes:
-                        st.error("**Alertes :**")
-                        for al in alertes:
-                            st.write(f"🔴 {al}")
-                    if recommandations:
-                        st.info("**Recommandations :**")
-                        for rec in recommandations:
-                            st.write(f"💡 {rec}")
-
-            # ── Points divers ────────────────────────────────────────────────
-            points_divers = a.get("points_divers", a.get("incidents_divers", []))
-            if points_divers:
-                st.subheader("Questions diverses")
-                for pt in points_divers:
-                    st.write(f"• {pt}")
-
-            # ── Diarization (si disponible) ──────────────────────────────────
-            diarization = a.get("diarization", [])
-            if diarization:
-                with st.expander(f"🗣️ Intervenants identifies ({len(diarization)})"):
-                    for d in diarization:
-                        ts = d.get("timestamp", "")
-                        loc = d.get("locuteur", "?")
-                        resume = d.get("contenu_resume", "")
-                        st.write(f"**{ts} — {loc}** : {resume}")
-
-            with st.expander("🔍 JSON brut"):
-                st.json(a)
-
-# ══════════════════════════════════════════════════════════════════════════════
-# ONGLET 3 — PROCES-VERBAL
-# ══════════════════════════════════════════════════════════════════════════════
-with tab3:
-    st.header("📄 Proces-verbal")
-
-    if not st.session_state.analyse:
-        st.info("👈 Lancez l analyse dans l onglet Analyse AG d abord.")
-    else:
-        if st.button("Generer le PV", type="primary"):
-            if api_key:
-                with st.spinner("Redaction du PV par Claude…"):
-                    try:
-                        st.session_state.pv_texte = pv_generator.generer_pv_texte(
-                            st.session_state.analyse, api_key
-                        )
-                        # Audit trail
-                        if st.session_state.historique_fichier_actuel:
-                            historique_manager.ajouter_action_audit(
-                                st.session_state.historique_fichier_actuel,
-                                "pv_genere", st.session_state.pv_texte
-                            )
-                        st.success("PV genere ✅")
-                    except Exception as e:
-                        st.error(f"Erreur : {e}")
-            else:
-                with st.spinner("Generation du PV (mode demo)…"):
-                    st.session_state.pv_texte = pv_generator.pv_demo(st.session_state.analyse)
-                    st.success("PV genere en mode demo ✅")
-
-        if st.session_state.pv_texte:
-            pv_editable = st.text_area(
-                "Proces-verbal — vous pouvez corriger avant export",
-                value=st.session_state.pv_texte,
-                height=500,
-            )
-            if pv_editable != st.session_state.pv_texte:
-                st.session_state.pv_texte = pv_editable
-
-            st.divider()
-            st.caption("📥 Exporter le proces-verbal")
-            col1, col2, col3 = st.columns(3)
-
-            with col1:
-                st.download_button(
-                    "⬇️ Texte (.txt)",
-                    data=st.session_state.pv_texte.encode("utf-8"),
-                    file_name="proces_verbal_ag.txt",
-                    mime="text/plain",
-                    use_container_width=True,
-                )
-
-            with col2:
-                if st.button("⬇️ PDF", use_container_width=True):
-                    tmp_path = None
-                    try:
-                        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-                            tmp_path = tmp.name
-                        pv_generator.exporter_pv_pdf(st.session_state.pv_texte, tmp_path)
-                        with open(tmp_path, "rb") as f:
-                            pdf_bytes = f.read()
-                        st.download_button(
-                            "📥 Telecharger le PDF",
-                            data=pdf_bytes,
-                            file_name="proces_verbal_ag.pdf",
-                            mime="application/pdf",
-                        )
-                    except Exception as e:
-                        st.error(f"Erreur PDF : {e}")
-                    finally:
-                        if tmp_path and os.path.exists(tmp_path):
-                            try:
-                                os.unlink(tmp_path)
-                            except OSError:
-                                pass
-
-            with col3:
-                if st.button("⬇️ Word (.docx)", use_container_width=True):
-                    tmp_path = None
-                    try:
-                        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
-                            tmp_path = tmp.name
-                        word_generator.generer_pv_word(st.session_state.analyse, tmp_path)
-                        with open(tmp_path, "rb") as f:
-                            docx_bytes = f.read()
-                        st.download_button(
-                            "📥 Telecharger le Word",
-                            data=docx_bytes,
-                            file_name="proces_verbal_ag.docx",
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        )
-                    except Exception as e:
-                        st.error(f"Erreur Word : {e}")
-                    finally:
-                        if tmp_path and os.path.exists(tmp_path):
-                            try:
-                                os.unlink(tmp_path)
-                            except OSError:
-                                pass
-
-# ══════════════════════════════════════════════════════════════════════════════
-# ONGLET 4 — QUESTIONS
-# ══════════════════════════════════════════════════════════════════════════════
-with tab4:
-    st.header("💬 Questions sur l AG")
-
-    if not st.session_state.analyse:
-        st.info("👈 Lancez l analyse dans l onglet Analyse AG d abord.")
-    elif not api_key:
-        st.warning("Une cle API est requise pour poser des questions a Claude.")
-    else:
-        exemples = [
-            "Qui a vote contre les travaux ?",
-            "Quel etait le quorum requis et a-t-il ete atteint ?",
-            "Quelles resolutions ont ete rejetees ?",
-            "Quels montants ont ete votes ?",
-            "Y a-t-il des points d attention legaux ?",
-        ]
-        st.caption("Exemples de questions :")
-        cols = st.columns(len(exemples))
-        question_exemple = None
-        for i, ex in enumerate(exemples):
-            if cols[i].button(ex, key=f"ex_{i}"):
-                question_exemple = ex
-
-        question = st.text_input(
-            "Votre question",
-            value=question_exemple or "",
-            placeholder="Ex : Qui a vote contre la resolution 3 ?",
-        )
-
-        if question and st.button("Poser la question", type="primary"):
-            with st.spinner("Claude cherche la reponse…"):
+# ── S5 PV ──────────────────────────────────────────────────────────────────────
+def _s5_pv(ag, meta, etape, etapes_ok, api_key):
+    st.subheader("📄 Étape 5 — Procès-verbal")
+    st.caption("Générez, corrigez et exportez le PV en PDF, Word ou TXT.")
+    analyse = st.session_state.analyse or {}
+    cle = api_key or os.getenv("ANTHROPIC_API_KEY","")
+    if st.button("Générer le PV", type="primary", key="btn_pv"):
+        if cle:
+            with st.spinner("Rédaction par Claude…"):
                 try:
-                    reponse = analyzer.poser_question(
-                        st.session_state.transcription,
-                        st.session_state.analyse,
-                        question,
-                        api_key,
-                    )
-                    st.info(reponse)
-                except Exception as e:
-                    st.error(f"Erreur : {e}")
-
-# ══════════════════════════════════════════════════════════════════════════════
-# ONGLET 5 — HISTORIQUE
-# ══════════════════════════════════════════════════════════════════════════════
-with tab5:
-    st.header("🗂️ Historique des assemblees generales")
-
-    dossiers = historique_manager.lister_dossiers()
-    nb_total = historique_manager.nb_ag_sauvegardees()
-
-    # ── Bouton demo — toujours visible ───────────────────────────────────────
-    with st.expander("🎭 Charger des donnees de demonstration", expanded=nb_total == 0):
-        st.caption("Charge 4 AG fictives : 2 x Copropriete Les Acacias (2023+2024), Association Elan Vitry, SAS Innov Tech.")
-        st.caption("Permet de tester dossiers, comparaison N/N-1, exports sans cle API.")
-        col_demo1, col_demo2 = st.columns(2)
-        with col_demo1:
-            if st.button("📥 Charger les 4 AG demo (session)", type="secondary", key="btn_demo_hist"):
-                # Chargement en memoire uniquement — ephemere, disparait au rechargement
-                ag_session_existantes = {
-                    (e["analyse"].get("informations_generales", {}).get("entite", ""),
-                     e["analyse"].get("informations_generales", {}).get("date", ""))
-                    for e in st.session_state.demo_historique_session
-                }
-                nb_charge = 0
-                for entree in historique_demo.DEMO_HISTORIQUE:
-                    infos = entree["analyse"].get("informations_generales", {})
-                    cle = (infos.get("entite", ""), infos.get("date", ""))
-                    if cle not in ag_session_existantes:
-                        st.session_state.demo_historique_session.append(entree)
-                        nb_charge += 1
-                if nb_charge > 0:
-                    st.success(f"{nb_charge} AG demo chargees en session ✅ (ephemere — non sauvegardees sur disque)")
-                    st.rerun()
-                else:
-                    st.info("Donnees demo deja chargees dans cette session.")
-        with col_demo2:
-            if st.session_state.demo_historique_session:
-                if st.button("🗑️ Vider la demo session", key="btn_vider_demo"):
-                    st.session_state.demo_historique_session = []
-                    st.rerun()
-
-    # ── AG demo session (ephemeres) ───────────────────────────────────────────
-    demo_session = st.session_state.demo_historique_session
-    if demo_session:
-        st.caption(f"🎭 Session demo : {len(demo_session)} AG (ephemeres — non sauvegardees)")
-        # Grouper par entite
-        from collections import defaultdict
-        demo_par_entite = defaultdict(list)
-        for entree in demo_session:
-            entite = entree["analyse"].get("informations_generales", {}).get("entite", "Inconnu")
-            demo_par_entite[entite].append(entree)
-
-        for entite, entrees in demo_par_entite.items():
-            type_ag = entrees[0]["analyse"].get("type_ag", "autre").replace("_", " ").upper()
-            with st.expander(f"🎭 **{entite}** — {len(entrees)} AG  |  {type_ag}  *(demo session)*", expanded=True):
-                for i, entree in enumerate(entrees):
-                    infos = entree["analyse"].get("informations_generales", {})
-                    date_ag = infos.get("date", "date inconnue")
-                    nb_res = len(entree["analyse"].get("resolutions", []))
-                    with st.expander(f"AG du {date_ag} — {nb_res} resolution(s)", expanded=False):
-                        if st.button("📂 Charger cette AG", key=f"load_demo_{entite}_{i}"):
-                            st.session_state.analyse = entree["analyse"]
-                            st.session_state.pv_texte = entree.get("pv_texte")
-                            st.session_state.transcription = ""
-                            st.session_state.historique_fichier_actuel = None
-                            st.success(f"AG demo du {date_ag} chargee ✅ — allez dans l onglet Analyse AG")
-
+                    st.session_state.pv_texte = pv_generator.generer_pv_texte(analyse, cle)
+                    fic = st.session_state.historique_fichier_actuel
+                    if fic: historique_manager.ajouter_action_audit(fic, "pv_genere", (st.session_state.pv_texte or "")[:80])
+                    st.success("PV généré ✅")
+                except Exception as e: st.error(f"Erreur : {e}")
+        else:
+            st.session_state.pv_texte = pv_generator.pv_demo(analyse)
+            st.success("PV généré (mode demo) ✅")
+    if st.session_state.pv_texte:
+        pv_e = st.text_area("Procès-verbal (éditable)", value=st.session_state.pv_texte, height=400, key="pv_edit")
+        if pv_e != st.session_state.pv_texte: st.session_state.pv_texte = pv_e
         st.divider()
+        st.caption("📥 Exporter")
+        c1,c2,c3 = st.columns(3)
+        with c1: st.download_button("⬇️ TXT", data=st.session_state.pv_texte.encode("utf-8"), file_name="pv_ag.txt", mime="text/plain", key="dl_pv_txt")
+        with c2:
+            if st.button("⬇️ PDF", key="btn_pv_pdf2", use_container_width=True):
+                tmp = None
+                try:
+                    with tempfile.NamedTemporaryFile(suffix=".pdf",delete=False) as t: tmp=t.name
+                    pv_generator.exporter_pv_pdf(st.session_state.pv_texte, tmp)
+                    with open(tmp,"rb") as f: st.download_button("📥 PDF", f.read(), "pv_ag.pdf", "application/pdf", key="dl_pv_pdf3")
+                except Exception as e: st.error(f"Erreur PDF : {e}")
+                finally:
+                    if tmp and os.path.exists(tmp):
+                        try: os.unlink(tmp)
+                        except: pass
+        with c3:
+            if st.button("⬇️ Word", key="btn_pv_word2", use_container_width=True):
+                tmp = None
+                try:
+                    with tempfile.NamedTemporaryFile(suffix=".docx",delete=False) as t: tmp=t.name
+                    word_generator.generer_pv_word(analyse, tmp)
+                    with open(tmp,"rb") as f: st.download_button("📥 Word", f.read(), "pv_ag.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", key="dl_pv_word3")
+                except Exception as e: st.error(f"Erreur Word : {e}")
+                finally:
+                    if tmp and os.path.exists(tmp):
+                        try: os.unlink(tmp)
+                        except: pass
+    _nav_btns(etape, etapes_ok, "Signature →", can_next=bool(st.session_state.pv_texte))
 
-    # ── AG reelles (disque) ───────────────────────────────────────────────────
-    if nb_total == 0 and not demo_session:
-        st.info("Aucune AG sauvegardee. Utilisez le bouton demo ci-dessus ou analysez une AG avec votre cle API.")
-    elif nb_total > 0:
-        st.caption(f"💾 Historique disque : {nb_total} AG — {len(dossiers)} dossier(s)")
-
-        # ── Vue groupee par dossier ───────────────────────────────────────────
-        for dossier in dossiers:
-            ag_du_dossier = historique_manager.lister_ag(dossier=dossier["dossier"])
-            type_label = ag_du_dossier[0]["type_ag"].replace("_", " ").upper() if ag_du_dossier else ""
-
-            # Expander niveau 1 : le dossier (entite)
-            with st.expander(
-                f"📁 **{dossier['entite']}** — {dossier['nb_ag']} AG  |  {type_label}",
-                expanded=True,
-            ):
-                for ag in ag_du_dossier:
-                    pv_badge = " 📄" if ag["a_pv"] else ""
-                    date_ag = ag["date_ag"] or "date inconnue"
-                    date_sauv = ag["sauvegarde_le"][:10] if ag["sauvegarde_le"] else "?"
-
-                    # Ligne AG (expander niveau 2)
-                    with st.expander(
-                        f"AG du {date_ag} — {ag['nb_resolutions']} resolution(s){pv_badge}",
-                        expanded=False,
-                    ):
-                        st.caption(f"Sauvegarde le {date_sauv}  |  Fichier : {ag['nom_fichier']}")
-
-                        # Audit trail
-                        audit = ag.get("audit_trail", [])
-                        if len(audit) > 1:
-                            with st.expander(f"📋 Audit trail ({len(audit)} action(s))", expanded=False):
-                                for acte in audit:
-                                    ts = acte.get("timestamp", "")[:16].replace("T", " ")
-                                    action = acte.get("action", "").replace("_", " ")
-                                    details = acte.get("details", "")
-                                    st.write(f"• `{ts}` — **{action}**{': ' + details[:80] if details and len(details) < 80 else ''}")
-
-                        # Boutons action
-                        btn1, btn2 = st.columns(2)
-                        with btn1:
-                            if st.button("📂 Charger cette AG", key=f"load_{ag['nom_fichier']}"):
-                                try:
-                                    entree = historique_manager.charger_ag(ag["fichier"])
-                                    st.session_state.analyse = entree["analyse"]
-                                    st.session_state.pv_texte = entree.get("pv_texte")
-                                    st.session_state.transcription = entree["analyse"].get("transcription_brute", "")
-                                    st.session_state.historique_fichier_actuel = ag["fichier"]
-                                    st.success(f"AG du {date_ag} chargee ✅ — allez dans l onglet Analyse AG")
-                                except Exception as e:
-                                    st.error(f"Erreur chargement : {e}")
-                        with btn2:
-                            if st.button("🗑️ Supprimer", key=f"del_{ag['nom_fichier']}"):
-                                if historique_manager.supprimer_ag(ag["fichier"]):
-                                    st.success("AG supprimee.")
-                                    st.rerun()
-                                else:
-                                    st.error("Impossible de supprimer.")
-
-    st.divider()
-
-    # ── Export / Import historique ────────────────────────────────────────────
-    st.subheader("💾 Sauvegarde de l historique")
-    col_exp, col_imp = st.columns(2)
-
-    with col_exp:
-        st.caption("Exporter pour sauvegarde ou transfert")
-        # Choix export : tout ou un dossier specifique
-        options_exp = ["Tous les dossiers"] + [d["entite"] for d in dossiers]
-        choix_exp = st.selectbox("Dossier a exporter", options_exp, key="export_dossier_select")
-        dossier_exp = None if choix_exp == "Tous les dossiers" else dossiers[options_exp.index(choix_exp) - 1]["dossier"]
-
-        if st.button("📦 Exporter (.zip)", use_container_width=True):
+# ── S6 Signature ───────────────────────────────────────────────────────────────
+def _s6_signature(ag, meta, etape, etapes_ok):
+    st.subheader("✍️ Étape 6 — Signature")
+    st.caption("Enregistrez la validation du PV par les signataires.")
+    sig = (ag or {}).get("meta_historique", {}).get("signature_date")
+    if sig: st.success(f"✅ PV signé le {sig}")
+    else: st.info("Le PV doit être signé physiquement par le président de séance et le secrétaire avant d avoir valeur juridique.")
+    with st.form("form_sig"):
+        c1,c2 = st.columns(2)
+        with c1:
+            signe_par = st.text_input("Signé par (président)", placeholder="Prénom Nom")
+            date_s = st.date_input("Date de signature", value=datetime.now())
+        with c2:
+            secretaire = st.text_input("Secrétaire", placeholder="Prénom Nom")
+            notes_s = st.text_area("Notes", height=80)
+        ok = st.form_submit_button("Marquer comme signé ✅", type="primary")
+    if ok:
+        fic = st.session_state.historique_fichier_actuel
+        if fic:
             try:
-                zip_bytes = historique_manager.exporter_historique(dossier=dossier_exp)
-                if zip_bytes:
-                    nom_zip = f"historique_{dossier_exp or 'complet'}_{datetime.now().strftime('%Y%m%d')}.zip"
-                    st.download_button(
-                        "📥 Telecharger le ZIP",
-                        data=zip_bytes,
-                        file_name=nom_zip,
-                        mime="application/zip",
-                    )
-                else:
-                    st.info("Dossier vide — rien a exporter.")
-            except Exception as e:
-                st.error(f"Erreur export : {e}")
+                e = historique_manager.charger_ag(fic)
+                e["meta_historique"].update({"signature_date":date_s.strftime("%d/%m/%Y"),"signature_par":signe_par,"secretaire":secretaire,"signature_notes":notes_s})
+                with open(fic,"w",encoding="utf-8") as f: json.dump(e,f,ensure_ascii=False,indent=2)
+                historique_manager.ajouter_action_audit(fic,"pv_signe",f"Signé par {signe_par} le {date_s.strftime('%d/%m/%Y')}")
+                st.session_state.ag_active = e
+                st.success("PV marqué comme signé ✅")
+            except Exception as e2: st.error(f"Erreur : {e2}")
+        if etape not in etapes_ok: etapes_ok.append(etape)
+        st.session_state.etapes_ok = etapes_ok; st.rerun()
+    _nav_btns(etape, etapes_ok, "Archiver →")
 
-    with col_imp:
-        st.caption("Restaurer un historique precedemment exporte")
-        zip_upload = st.file_uploader("Importer un ZIP d historique", type=["zip"], key="import_hist")
-        if zip_upload and st.button("📂 Importer", use_container_width=True):
+# ── S7 Archivage ───────────────────────────────────────────────────────────────
+def _s7_archivage(ag, meta, etape, etapes_ok):
+    st.subheader("🗂️ Étape 7 — Archivage")
+    st.caption("Sauvegardez cette AG dans votre historique.")
+    analyse = st.session_state.analyse or {}
+    pv_texte = st.session_state.pv_texte
+    entite = meta.get("entite","Entite")
+    fic = st.session_state.historique_fichier_actuel
+    if fic:
+        st.success(f"✅ AG archivée — dossier : **{meta.get('dossier', entite)}**")
+        if pv_texte and st.button("Mettre à jour le PV dans l archive", key="btn_upd_pv"):
             try:
-                nb_import = historique_manager.importer_historique(zip_upload.read())
-                st.success(f"{nb_import} AG importee(s) ✅")
+                e = historique_manager.charger_ag(fic)
+                e["pv_texte"] = pv_texte; e["meta_historique"]["a_pv"] = True
+                with open(fic,"w",encoding="utf-8") as f: json.dump(e,f,ensure_ascii=False,indent=2)
+                historique_manager.ajouter_action_audit(fic,"pv_archive","PV mis à jour")
+                st.success("Archive mise à jour ✅")
+            except Exception as e2: st.error(f"Erreur : {e2}")
+    else:
+        st.info(f"Cette AG sera sauvegardée dans le dossier **{historique_manager._nom_dossier(entite)}**.")
+        if st.button("📦 Archiver cette AG", type="primary", key="btn_arch"):
+            try:
+                chemin = historique_manager.sauvegarder_ag(analyse, pv_texte)
+                st.session_state.historique_fichier_actuel = chemin
+                if etape not in etapes_ok: etapes_ok.append(etape)
+                st.session_state.etapes_ok = etapes_ok
+                st.success(f"AG archivée ✅")
+                st.balloons()
                 st.rerun()
-            except Exception as e:
-                st.error(f"Erreur import : {e}")
-
-    st.divider()
-
-    # ── Comparaison N vs N-1 ──────────────────────────────────────────────────
-    st.subheader("📊 Comparaison N vs N-1")
-
-    # Construire liste unifiee disque + session demo
-    ag_list_comp_disque = historique_manager.lister_ag()
-    ag_list_comp_session = [
-        {
-            "entite": e["analyse"].get("informations_generales", {}).get("entite", "Demo"),
-            "date_ag": e["analyse"].get("informations_generales", {}).get("date", ""),
-            "fichier": f"__session__{i}",
-            "_analyse": e["analyse"],
-        }
-        for i, e in enumerate(st.session_state.demo_historique_session)
-    ]
-    ag_list_comp = [
-        {**ag, "_source": "disque"} for ag in ag_list_comp_disque
-    ] + [
-        {**ag, "_source": "session"} for ag in ag_list_comp_session
-    ]
-
-    if len(ag_list_comp) < 2:
-        st.info("Au moins 2 AG sont necessaires pour effectuer une comparaison (historique disque ou demo session).")
-    else:
-        options = {
-            f"{ag['entite']} — {ag['date_ag'] or ''} {'🎭' if ag['_source']=='session' else '💾'}": ag
-            for ag in ag_list_comp
-        }
-        labels = list(options.keys())
-
-        col_a, col_b = st.columns(2)
-        with col_a:
-            label_ag1 = st.selectbox("AG N-1 (ancienne)", labels, index=min(1, len(labels)-1), key="comp_ag1")
-        with col_b:
-            label_ag2 = st.selectbox("AG N (recente)", labels, index=0, key="comp_ag2")
-
-        if st.button("Comparer ces deux AG", type="primary"):
-            if label_ag1 == label_ag2:
-                st.warning("Selectionnez deux AG differentes.")
-            else:
-                try:
-                    ag1_entry = options[label_ag1]
-                    ag2_entry = options[label_ag2]
-                    # Utiliser comparer_ag (disque) ou comparer_analyses_dict (session)
-                    if ag1_entry["_source"] == "disque" and ag2_entry["_source"] == "disque":
-                        rapport = historique_manager.comparer_ag(ag1_entry["fichier"], ag2_entry["fichier"])
-                    elif ag1_entry["_source"] == "session" and ag2_entry["_source"] == "session":
-                        rapport = historique_manager.comparer_analyses_dict(ag1_entry["_analyse"], ag2_entry["_analyse"])
-                    else:
-                        # Mix disque + session : charger l analyse disque
-                        def _get_analyse(entry):
-                            if entry["_source"] == "disque":
-                                return historique_manager.charger_ag(entry["fichier"])["analyse"]
-                            return entry["_analyse"]
-                        rapport = historique_manager.comparer_analyses_dict(_get_analyse(ag1_entry), _get_analyse(ag2_entry))
-
-                    # Entetes
-                    c1, c2 = st.columns(2)
-                    c1.markdown(f"**AG N-1** : {rapport['ag1']['entite']} — {rapport['ag1']['date']}")
-                    c2.markdown(f"**AG N** : {rapport['ag2']['entite']} — {rapport['ag2']['date']}")
-
-                    st.divider()
-
-                    # Quorum
-                    st.subheader("Quorum")
-                    q = rapport["quorum"]
-                    col1, col2, col3, col4 = st.columns(4)
-                    col1.metric("Quorum N-1", "✅" if q["ag1_atteint"] else "❌" if q["ag1_atteint"] is False else "—")
-                    col2.metric("Quorum N", "✅" if q["ag2_atteint"] else "❌" if q["ag2_atteint"] is False else "—")
-                    if q["ag1_calcule"] and q["ag2_calcule"]:
-                        delta = q["ag2_calcule"] - q["ag1_calcule"]
-                        col3.metric("Voix N-1", q["ag1_calcule"])
-                        col4.metric("Voix N", q["ag2_calcule"], delta=f"{delta:+d}")
-
-                    # Participants
-                    st.subheader("Participants")
-                    p = rapport["participants"]
-                    col1, col2 = st.columns(2)
-                    col1.metric("Votants N-1", p["ag1_votants"] or "—")
-                    col2.metric("Votants N", p["ag2_votants"] or "—")
-
-                    # Resolutions communes
-                    res_communes = rapport["resolutions_communes"]
-                    if res_communes:
-                        st.subheader(f"Resolutions communes ({len(res_communes)})")
-                        for r in res_communes:
-                            icone = "🔄" if r["statut_change"] else "➡️"
-                            with st.expander(f"{icone} {r['titre']}", expanded=r["statut_change"]):
-                                col1, col2 = st.columns(2)
-                                col1.markdown(f"**N-1** : {r['statut_ag1'] or '—'}")
-                                col2.markdown(f"**N** : {r['statut_ag2'] or '—'}")
-                                if r["statut_change"]:
-                                    st.warning("Statut change entre les deux AG")
-                                v1 = r["votes_ag1"]
-                                v2 = r["votes_ag2"]
-                                if any(v is not None for v in [v1.get("pour"), v2.get("pour")]):
-                                    c1, c2, c3 = st.columns(3)
-                                    c1.metric("Pour N-1 → N", f"{v1.get('pour', '?')} → {v2.get('pour', '?')}")
-                                    c2.metric("Contre N-1 → N", f"{v1.get('contre', '?')} → {v2.get('contre', '?')}")
-                                    c3.metric("Abstentions N-1 → N", f"{v1.get('abstentions', '?')} → {v2.get('abstentions', '?')}")
-
-                    # Nouvelles / disparues
-                    if rapport["nouvelles_resolutions"]:
-                        st.subheader("🆕 Nouvelles resolutions (AG N uniquement)")
-                        for t in rapport["nouvelles_resolutions"]:
-                            st.write(f"• {t}")
-
-                    if rapport["resolutions_disparues"]:
-                        st.subheader("🗑️ Resolutions absentes en N")
-                        for t in rapport["resolutions_disparues"]:
-                            st.write(f"• {t}")
-
-                except Exception as e:
-                    st.error(f"Erreur comparaison : {e}")
+            except Exception as e: st.error(f"Erreur : {e}")
+    if fic or st.session_state.historique_fichier_actuel:
+        st.divider()
+        st.subheader("🎉 AG complète !")
+        nb_ok = len(etapes_ok)
+        st.progress(nb_ok/7, text=f"{nb_ok}/7 étapes complétées")
+        c1,c2 = st.columns(2)
+        with c1:
+            if st.button("🏠 Retour au Dashboard", type="primary", use_container_width=True): _nav("dashboard")
+        with c2:
+            if st.button("➕ Nouvelle AG", use_container_width=True): _nav("nouvelle_ag")
+    _nav_btns(etape, etapes_ok)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ONGLET 6 — CONVOCATION
+# ROUTER PRINCIPAL
 # ══════════════════════════════════════════════════════════════════════════════
-with tab6:
-    st.header("📬 Generateur de convocation")
-    st.caption("Genere une convocation conforme avec les mentions legales obligatoires selon le type d entite.")
+mode, api_key, hf_token_ui = _sidebar()
 
-    if not st.session_state.analyse:
-        st.info("👈 Chargez ou analysez une AG d abord pour pre-remplir la convocation. Ou remplissez les champs manuellement.")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        date_conv_input = st.date_input("Date d envoi de la convocation", value=datetime.now())
-        date_ag_input = st.text_input("Date proposee de l AG prochaine", placeholder="ex: 15/06/2025")
-    with col2:
-        lieu_input = st.text_input(
-            "Lieu de l AG",
-            value=st.session_state.analyse.get("informations_generales", {}).get("lieu", "") if st.session_state.analyse else "",
-            placeholder="Adresse ou salle"
-        )
-
-    if st.button("Generer la convocation", type="primary"):
-        analyse_conv = st.session_state.analyse or {}
-        date_conv_str = date_conv_input.strftime("%d/%m/%Y") if date_conv_input else None
-
-        col_pdf, col_word = st.columns(2)
-        with col_pdf:
-            tmp_path = None
-            try:
-                with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-                    tmp_path = tmp.name
-                convocation_generator.generer_convocation_pdf(analyse_conv, tmp_path, date_conv_str, date_ag_input or None, lieu_input or None)
-                with open(tmp_path, "rb") as f:
-                    st.download_button("📥 Convocation PDF", data=f.read(), file_name="convocation_ag.pdf", mime="application/pdf", use_container_width=True)
-            except Exception as e:
-                st.error(f"Erreur PDF : {e}")
-            finally:
-                if tmp_path and os.path.exists(tmp_path):
-                    try: os.unlink(tmp_path)
-                    except OSError: pass
-
-        with col_word:
-            tmp_path = None
-            try:
-                with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
-                    tmp_path = tmp.name
-                convocation_generator.generer_convocation_word(analyse_conv, tmp_path, date_conv_str, date_ag_input or None, lieu_input or None)
-                with open(tmp_path, "rb") as f:
-                    st.download_button("📥 Convocation Word", data=f.read(), file_name="convocation_ag.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
-            except Exception as e:
-                st.error(f"Erreur Word : {e}")
-            finally:
-                if tmp_path and os.path.exists(tmp_path):
-                    try: os.unlink(tmp_path)
-                    except OSError: pass
-
-# ══════════════════════════════════════════════════════════════════════════════
-# ONGLET 7 — FEUILLE DE PRESENCE
-# ══════════════════════════════════════════════════════════════════════════════
-with tab7:
-    st.header("👥 Feuille de presence")
-    st.caption("Genere une feuille de presence pre-remplie depuis l analyse AG.")
-
-    if not st.session_state.analyse:
-        st.info("👈 Analysez une AG d abord pour pre-remplir la feuille de presence.")
-    else:
-        analyse_fp = st.session_state.analyse
-        infos_fp = analyse_fp.get("informations_generales", {})
-        p_fp = analyse_fp.get("participants", {})
-
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Presents", p_fp.get("total_presents", "—"))
-        col2.metric("Representes", p_fp.get("total_representes", "—"))
-        col3.metric("Total votants", p_fp.get("total_votants", "—"))
-
-        if st.button("Generer la feuille de presence", type="primary"):
-            col_pdf, col_word = st.columns(2)
-            with col_pdf:
-                tmp_path = None
-                try:
-                    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-                        tmp_path = tmp.name
-                    presence_generator.generer_feuille_presence_pdf(analyse_fp, tmp_path)
-                    with open(tmp_path, "rb") as f:
-                        st.download_button("📥 Presence PDF", data=f.read(), file_name="feuille_presence_ag.pdf", mime="application/pdf", use_container_width=True)
-                except Exception as e:
-                    st.error(f"Erreur PDF : {e}")
-                finally:
-                    if tmp_path and os.path.exists(tmp_path):
-                        try: os.unlink(tmp_path)
-                        except OSError: pass
-
-            with col_word:
-                tmp_path = None
-                try:
-                    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
-                        tmp_path = tmp.name
-                    presence_generator.generer_feuille_presence_word(analyse_fp, tmp_path)
-                    with open(tmp_path, "rb") as f:
-                        st.download_button("📥 Presence Word", data=f.read(), file_name="feuille_presence_ag.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
-                except Exception as e:
-                    st.error(f"Erreur Word : {e}")
-                finally:
-                    if tmp_path and os.path.exists(tmp_path):
-                        try: os.unlink(tmp_path)
-                        except OSError: pass
+if st.session_state.vue == "dashboard":
+    _dashboard()
+elif st.session_state.vue == "nouvelle_ag":
+    _nouvelle_ag()
+elif st.session_state.vue == "workflow":
+    _workflow(mode, api_key, hf_token_ui)
+else:
+    _nav("dashboard")
