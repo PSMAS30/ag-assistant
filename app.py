@@ -678,6 +678,10 @@ def _s7_archivage(ag, meta, etape, etapes_ok):
     entite = meta.get("entite","Entite")
     fic = st.session_state.historique_fichier_actuel
     if fic:
+        # Marquer l etape 7 comme completee des qu on est sur une AG archivee
+        if 7 not in etapes_ok:
+            etapes_ok.append(7)
+            st.session_state.etapes_ok = etapes_ok
         st.success(f"✅ AG archivée — dossier : **{meta.get('dossier', entite)}**")
         if pv_texte and st.button("Mettre à jour le PV dans l archive", key="btn_upd_pv"):
             try:
