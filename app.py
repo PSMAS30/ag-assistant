@@ -71,9 +71,12 @@ def _charger_session(fichier):
     st.session_state.pv_texte = e.get("pv_texte")
     st.session_state.transcription = e.get("transcription", "")
     st.session_state.historique_fichier_actuel = fichier
+    # etape = prochaine etape a faire (ex: PV genere → reprend a Signature)
     etape, _ = _statut_ag(e)
-    st.session_state.etape = min(etape, 7)
-    st.session_state.etapes_ok = list(range(1, etape))
+    prochaine = min(etape, 7)
+    st.session_state.etape = prochaine
+    # toutes les etapes precedentes marquees comme completees
+    st.session_state.etapes_ok = list(range(1, prochaine))
 
 def _analyse_simulee(demo):
     m = demo.get("metadata", {})
@@ -328,6 +331,17 @@ def _workflow(mode, api_key, hf_token_ui):
             "Naviguez librement les 7 étapes : convocation, présence, transcription, analyse, PV, signature, archivage. "
             "Aucune clé API requise."
         )
+
+    # Banniere de reprise (AG existante ouverte depuis le dashboard)
+    elif etapes_ok and not is_demo_guidee:
+        etape_labels = {1:"Convocation",2:"Présence",3:"Réunion",4:"Analyse",5:"PV",6:"Signature",7:"Archivage"}
+        dernier_ok = max(etapes_ok) if etapes_ok else 0
+        if dernier_ok > 0:
+            st.info(
+                f"📂 **Reprise de l AG** — Étapes 1 à {dernier_ok} ({etape_labels.get(dernier_ok,'')}) complétées. "
+                f"Vous êtes à l étape **{etape} — {etape_labels.get(etape,'')}**. "
+                f"Utilisez la navigation latérale pour revenir à une étape précédente."
+            )
 
     cb, ct, _ = st.columns([1, 5, 1])
     with cb:

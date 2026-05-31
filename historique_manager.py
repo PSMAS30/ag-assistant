@@ -6,6 +6,7 @@ Inclut audit trail, comparaison N vs N-1, export/import ZIP.
 
 import json
 import os
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 
@@ -18,8 +19,13 @@ def _assurer_dossier():
 
 
 def _nom_dossier(entite: str) -> str:
-    """Sanitize le nom d entite pour en faire un nom de dossier valide."""
-    clean = "".join(c for c in entite if c.isalnum() or c in " _-")[:40].strip()
+    """
+    Sanitize le nom d entite pour en faire un nom de dossier valide.
+    Normalise les accents (Copropriete == Copropriété → meme dossier).
+    """
+    # Normalisation Unicode : supprime les accents
+    sans_accents = unicodedata.normalize("NFKD", entite).encode("ascii", "ignore").decode("ascii")
+    clean = "".join(c for c in sans_accents if c.isalnum() or c in " _-")[:40].strip()
     return clean.replace(" ", "_") or "Sans_nom"
 
 
