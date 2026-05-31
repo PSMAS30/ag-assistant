@@ -91,29 +91,56 @@ Le PV n est qu une etape. Le vrai risque se situe tout au long du processus :
 
 ---
 
+## Deux modes d utilisation
+
+| Fonctionnalite | Demo en ligne (Streamlit Cloud) | Installation locale |
+|----------------|--------------------------------|---------------------|
+| Upload audio + transcription | ❌ | ✅ |
+| Diarization (identification locuteurs) | ❌ | ✅ |
+| 3 AG fictives (mode demo) | ✅ | ✅ |
+| Analyse Claude (avec cle API) | ✅ | ✅ |
+| PV / Convocation / Feuille de presence | ✅ | ✅ |
+| Historique persistant | ❌ ephemere | ✅ sur disque |
+
+> **Streamlit Cloud** = tester les fonctionnalites IA sans installation
+> **Installation locale** = traiter vos vrais enregistrements audio
+
+---
+
 ## Demarrage rapide
 
 ### Prerequis
 - Python 3.10+
 - pip
 
-### Installation de base (Streamlit Cloud / demo)
+### Option A — Demo en ligne (sans installation)
+
+👉 [ag-assistant.streamlit.app](https://ag-assistant.streamlit.app)
+
+Entrez votre cle API Anthropic dans la sidebar → toutes les fonctions IA disponibles.
+La transcription audio necessite l installation locale (Option B).
+
+---
+
+### Option B — Installation locale complete (avec transcription audio)
 
 ```bash
 git clone https://github.com/PSMAS30/ag-assistant.git
 cd ag-assistant
-pip install -r requirements.txt
+
+# Dependances de base
+pip install -r requirements-local.txt
+
+# PyTorch CPU (pour la transcription et la diarization)
+pip install torch==2.6.0+cpu torchaudio==2.6.0+cpu --index-url https://download.pytorch.org/whl/cpu
+
+# Lancer l application
 streamlit run app.py
 ```
 
-### Installation locale complete (avec transcription audio + diarization)
+L application s ouvre sur `http://localhost:8501`
 
-```bash
-pip install -r requirements-local.txt
-pip install torch==2.6.0+cpu torchaudio==2.6.0+cpu --index-url https://download.pytorch.org/whl/cpu
-```
-
-### Configuration
+### Configuration (installation locale)
 
 ```bash
 cp .env.example .env
